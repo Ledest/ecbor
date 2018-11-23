@@ -1,10 +1,7 @@
-.eunit
-deps
-*.o
-*.beam
+/.eunit
+/.rebar
+/deps
+/doc
+/ebin
 *.plt
 erl_crash.dump
-ebin/*.beam
-rel/example_project
-.concrete/DEV_MODE
-.rebar
