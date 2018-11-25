@@ -97,7 +97,10 @@ enc_string(B, S) when S < 16#10000 -> <<?TYPE2(?TSTR, S), B/binary>>;
 enc_string(B, S) when S < 16#100000000 -> <<?TYPE4(?TSTR, S), B/binary>>;
 enc_string(B, S) when S < 16#10000000000000000 -> <<?TYPE8(?TSTR, S), B/binary>>.
 
-enc_list(L) -> [?INDEFINITE(?ARRAY)|lists:foldr(fun(E, A) -> [enc(E)|A] end, [?BREAK], L)].
+enc_list(L) -> [?INDEFINITE(?ARRAY)|encode_list(L)].
+
+encode_list([H|L]) -> [enc(H)|encode_list(L)];
+encode_list([]) -> [?BREAK].
 
 enc_tuple(T) -> enc_tuple(T, tuple_size(T)).
 
