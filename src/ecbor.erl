@@ -49,6 +49,13 @@ enc(I) when is_integer(I) -> enc_integer(I);
 enc(F) when is_float(F) -> enc_float(F);
 enc(B) when is_binary(B) -> enc_binary(B);
 enc(L) when is_list(L) -> enc_list(L);
+enc({{Y, Month, D} = Date, {H, M, S}} = DT) when is_integer(Y), is_integer(Month), is_integer(D),
+                                                 is_integer(H), is_integer(M), is_integer(S),
+                                                 Month =< 12, D =< 31, H < 24, M < 60, S < 60 ->
+    case calendar:valid_date(Date) of
+        true -> enc_datetime(DT);
+        _false -> enc_tuple(DT)
+    end;
 enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
@@ -60,6 +67,8 @@ dec(<<?SIMPLE(22), R/binary>>) -> {null, R};
 dec(<<?SIMPLE(23), R/binary>>) -> {undefined, R};
 dec(<<?PINT:3, S:5, B/binary>>) -> dec_pos_integer(S, B);
 dec(<<?NINT:3, S:5, B/binary>>) -> dec_neg_integer(S, B);
+dec(<<?TAG:3, 0:5, B/binary>>) -> dec_datetime(B);
+dec(<<?TAG:3, 1:5, B/binary>>) -> dec_seconds(B);
 dec(<<?TAG:3, 2:5, ?BSTR:3, S:5, B/binary>>) -> dec_big_pos_integer(S, B);
 dec(<<?TAG:3, 3:5, ?BSTR:3, S:5, B/binary>>) -> dec_big_neg_integer(S, B);
 dec(<<?TAG:3, 6:5, ?TSTR:3, S:5, B/binary>>) -> dec_atom(S, B);
@@ -131,6 +140,10 @@ enc_map(M, S) ->
 enc_float(F) -> <<?FLOAT8, F/float>>.
 
 enc_atom(A) -> [?TYPE(?TAG) + 6, enc_string(atom_to_binary(A, utf8))].
+
+enc_datetime(DT) ->
+    I = calendar:datetime_to_gregorian_seconds(DT) - calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+    [?TYPE(?TAG) + 1, enc_integer(I)].
 
 enc_pos_integer(I) when I < 24 -> <<?TYPE0(?PINT, I)>>;
 enc_pos_integer(I) when I < 16#100 -> <<?TYPE1(?PINT, I)>>;
@@ -209,6 +222,14 @@ dec_map(B) ->
     {V, R2} = dec(R1),
     {M, R} = dec_map(R2),
     {M#{K => V}, R}.
+
+dec_seconds(B) ->
+    {I, R} = dec(B),
+    {calendar:system_time_to_universal_time(I, seconds), R}.
+
+dec_datetime(B) ->
+    {S, R} = dec(B),
+    {calendar:system_time_to_universal_time(calendar:rfc3339_to_system_time(binary_to_list(S)), seconds), R}.
 
 sb(S, B) when S < 24 -> {S, B};
 sb(S, B) ->
