@@ -224,8 +224,8 @@ dec_map(B) ->
     {M#{K => V}, R}.
 
 dec_seconds(B) ->
-    {I, R} = dec(B),
-    {calendar:system_time_to_universal_time(I, seconds), R}.
+    {S, R} = dec(B),
+    {calendar:system_time_to_universal_time(round(S), seconds), R}.
 
 dec_datetime(B) ->
     {S, R} = dec(B),
