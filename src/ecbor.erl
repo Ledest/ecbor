@@ -10,7 +10,7 @@
 
 -define(TYPE(T), (T bsl 5)).
 
--define(INDEFINITE, 2#11111).
+-define(INDEFINITE, 16#1F).
 -define(BREAK, 16#FF).
 -define(INDEFINITE(T), (?TYPE(T) + ?INDEFINITE)).
 
@@ -63,6 +63,7 @@ dec(<<?NINT:3, S:5, B/binary>>) -> dec_neg_integer(S, B);
 dec(<<?TAG:3, 2:5, ?BSTR:3, S:5, B/binary>>) -> dec_big_pos_integer(S, B);
 dec(<<?TAG:3, 3:5, ?BSTR:3, S:5, B/binary>>) -> dec_big_neg_integer(S, B);
 dec(<<?TAG:3, 6:5, ?TSTR:3, S:5, B/binary>>) -> dec_atom(S, B);
+dec(<<?TAG:3, _:5, B/binary>>) -> dec(B);
 dec(<<?FLOAT8, F/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT2, S:1, E:5, F:10, B/binary>>) ->
