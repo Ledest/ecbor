@@ -12,7 +12,7 @@
 
 -define(INDEFINITE, 16#1F).
 -define(BREAK, 16#FF).
--define(INDEFINITE(T), (?TYPE(T) + ?INDEFINITE)).
+-define(INDEFINITE(T), (?TYPE(T) bor ?INDEFINITE)).
 
 -define(TYPE0(T, S), T:3, S:5).
 -define(TYPE1(T, S), T:3, ?SIZE1:5, S).
