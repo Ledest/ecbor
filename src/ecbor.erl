@@ -143,8 +143,7 @@ enc_map(M) ->
          S when S < 16#10000 -> <<?TYPE2(?MAP, S)>>;
          S when S < 16#100000000 -> <<?TYPE4(?MAP, S)>>;
          S when S < 16#10000000000000000 -> <<?TYPE8(?MAP, S)>>
-     end|lists:foldl(fun({K, V}, A) -> [K, V|A] end, [],
-                     lists:sort(fun erlang:'>'/2, maps:fold(fun(K, V, A) -> [{enc(K), enc(V)}|A] end, [], M)))].
+     end|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
 
 enc_float(F) -> <<?FLOAT8, F/float>>.
 
