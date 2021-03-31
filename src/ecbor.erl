@@ -35,7 +35,7 @@
 -define(FLOAT4, ?SIMPLE(26)).
 -define(FLOAT8, ?SIMPLE(27)).
 
-encode(T) -> list_to_binary([enc(T)]).
+encode(T) -> iolist_to_binary(enc(T)).
 
 decode(B) ->
     {T, _} = dec(B),
