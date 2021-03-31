@@ -29,7 +29,7 @@
 -define(TAG, 6).
 -define(SIMPLE, 7).
 
--define(SIMPLE(N), ((?SIMPLE bsl 5) + N)).
+-define(SIMPLE(N), (?TYPE(?SIMPLE) bor N)).
 
 -define(FLOAT2, ?SIMPLE(25)).
 -define(FLOAT4, ?SIMPLE(26)).
