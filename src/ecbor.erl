@@ -132,16 +132,15 @@ enc_tuple(T) ->
 enc_tuple(_, 0, A) -> A;
 enc_tuple(T, S, A) -> enc_tuple(T, S - 1, [enc(element(S, T))|A]).
 
-enc_map(M) -> enc_map(M, map_size(M)).
-
-enc_map(M, S) ->
-    [if
-         S < 24 -> <<?TYPE0(?MAP, S)>>;
-         S < 16#100 -> <<?TYPE1(?MAP, S)>>;
-         S < 16#10000 -> <<?TYPE2(?MAP, S)>>;
-         S < 16#100000000 -> <<?TYPE4(?MAP, S)>>;
-         S < 16#10000000000000000 -> <<?TYPE8(?MAP, S)>>
-     end|maps:fold(fun(K, V, A) -> [enc(K), enc(V)|A] end, [], M)].
+enc_map(M) ->
+    [case map_size(M) of
+         S when S < 24 -> <<?TYPE0(?MAP, S)>>;
+         S when S < 16#100 -> <<?TYPE1(?MAP, S)>>;
+         S when S < 16#10000 -> <<?TYPE2(?MAP, S)>>;
+         S when S < 16#100000000 -> <<?TYPE4(?MAP, S)>>;
+         S when S < 16#10000000000000000 -> <<?TYPE8(?MAP, S)>>
+     end|lists:foldl(fun({K, V}, A) -> [K, V|A] end, [],
+                     lists:sort(fun erlang:'>'/2, maps:fold(fun(K, V, A) -> [{enc(K), enc(V)}|A] end, [], M)))].
 
 enc_float(F) -> <<?FLOAT8, F/float>>.
 
