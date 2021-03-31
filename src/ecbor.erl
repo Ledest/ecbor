@@ -119,9 +119,8 @@ enc_list(L) -> [?INDEFINITE(?ARRAY)|encode_list(L)].
 encode_list([H|L]) -> [enc(H)|encode_list(L)];
 encode_list([]) -> [?BREAK].
 
-enc_tuple(T) -> enc_tuple(T, tuple_size(T)).
-
-enc_tuple(T, S) ->
+enc_tuple(T) ->
+    S = tuple_size(T),
     [if
          S < 24 -> <<?TYPE0(?ARRAY, S)>>;
          S < 16#100 -> <<?TYPE1(?ARRAY, S)>>;
