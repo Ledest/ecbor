@@ -75,9 +75,7 @@ dec(<<?TAG:3, 6:5, ?TSTR:3, S:5, B/binary>>) -> dec_atom(S, B);
 dec(<<?TAG:3, _:5, B/binary>>) -> dec(B);
 dec(<<?FLOAT8, F/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
-dec(<<?FLOAT2, S:1, E:5, F:10, B/binary>>) ->
-    <<T:32/float>> = <<S:1, (E + (127 - 15)):8, F:10, 0:13>>,
-    {T, B};
+dec(<<?FLOAT2, _/binary>> = B) -> dec_float16(B);
 dec(<<?INDEFINITE(?ARRAY), B/binary>>) -> dec_array(B);
 dec(<<?INDEFINITE(?MAP), B/binary>>) -> dec_map(B);
 dec(<<?INDEFINITE(?BSTR), B/binary>>) -> dec_binaries(B);
@@ -87,6 +85,15 @@ dec(<<?TSTR:3, S:5, B/binary>>) -> dec_binary(S, B);
 dec(<<?ARRAY:3, S:5, B/binary>>) -> dec_tuple(S, B);
 dec(<<?MAP:3, S:5, B/binary>>) -> dec_map(S, B);
 dec(T) -> error(badarg, [T]).
+
+-compile({inline, dec_float16/1}).
+-ifdef(HAVE_float16).
+dec_float16(<<_, F:16/float, B/binary>>) -> {F, B}.
+-else.
+dec_float16(<<_, S:1, E:5, F:10, B/binary>>) ->
+    <<T:32/float>> = <<S:1, (E + (127 - 15)):8, F:10, 0:13>>,
+    {T, B}.
+-endif.
 
 enc_integer(I) when I >= 0 -> enc_pos_integer(I);
 enc_integer(I) -> enc_neg_integer(I).
