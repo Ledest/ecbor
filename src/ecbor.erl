@@ -12,14 +12,19 @@
 
 -define(INDEFINITE, 16#1F).
 -define(BREAK, 16#FF).
--define(INDEFINITE(T), (?TYPE(T) bor ?INDEFINITE)).
 
--define(TYPE(T, L, S, B), T:3, L:5, S:B).
+-define(TYPE(T, L, S, B), T:3, L:5, S:B/unit:8).
 -define(TYPE0(T, S), T:3, S:5).
--define(TYPE1(T, S), ?TYPE(T, ?SIZE1, S, 8)).
--define(TYPE2(T, S), ?TYPE(T, ?SIZE2, S, 16)).
--define(TYPE4(T, S), ?TYPE(T, ?SIZE4, S, 32)).
--define(TYPE8(T, S), ?TYPE(T, ?SIZE8, S, 64)).
+-define(TYPE1(T, S), ?TYPE(T, ?SIZE1, S, 1)).
+-define(TYPE2(T, S), ?TYPE(T, ?SIZE2, S, 2)).
+-define(TYPE4(T, S), ?TYPE(T, ?SIZE4, S, 4)).
+-define(TYPE8(T, S), ?TYPE(T, ?SIZE8, S, 8)).
+
+-define(TAG0(S), ?TYPE0(?TAG, S)).
+-define(TAG1(S), ?TYPE1(?TAG, S)).
+-define(TAG2(S), ?TYPE2(?TAG, S)).
+-define(TAG4(S), ?TYPE4(?TAG, S)).
+-define(TAG8(S), ?TYPE8(?TAG, S)).
 
 -define(PINT, 0).
 -define(NINT, 1).
@@ -34,6 +39,10 @@
 
 -define(PINT(S), ?TYPE0(?PINT, S)).
 -define(NINT(S), ?TYPE0(?NINT, S)).
+-define(BSTR(S), ?TYPE0(?BSTR, S)).
+-define(TSTR(S), ?TYPE0(?TSTR, S)).
+-define(ARRAY(S), ?TYPE0(?ARRAY, S)).
+-define(MAP(S), ?TYPE0(?MAP, S)).
 
 -define(FLOAT2, ?SIMPLE(25)).
 -define(FLOAT4, ?SIMPLE(26)).
@@ -74,24 +83,24 @@ dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT2, _/binary>> = B) -> dec_float16(B);
 dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(S, B);
 dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(S, B);
-dec(<<?INDEFINITE(?BSTR), B/binary>>) -> dec_binaries(B);
-dec(<<?INDEFINITE(?TSTR), B/binary>>) -> dec_binaries(B);
-dec(<<?INDEFINITE(?ARRAY), B/binary>>) -> dec_array(B);
-dec(<<?INDEFINITE(?MAP), B/binary>>) -> dec_map(B);
-dec(<<?BSTR:3, S:5, B/binary>>) -> dec_binary(S, B);
-dec(<<?TSTR:3, S:5, B/binary>>) -> dec_binary(S, B);
-dec(<<?ARRAY:3, S:5, B/binary>>) -> dec_tuple(S, B);
-dec(<<?MAP:3, S:5, B/binary>>) -> dec_map(S, B);
-dec(<<?TAG:3, 0:5, B/binary>>) -> dec_datetime(B);
-dec(<<?TAG:3, 1:5, B/binary>>) -> dec_seconds(B);
-dec(<<?TAG:3, 2:5, ?BSTR:3, S:5, B/binary>>) -> dec_big_pos_integer(S, B);
-dec(<<?TAG:3, 3:5, ?BSTR:3, S:5, B/binary>>) -> dec_big_neg_integer(S, B);
-dec(<<?TAG:3, 6:5, ?TSTR:3, S:5, B/binary>>) -> dec_atom(S, B);
-dec(<<?TAG:3, ?SIZE1:5, _:1/bytes, B/binary>>) -> dec(B);
-dec(<<?TAG:3, ?SIZE2:5, _:2/bytes, B/binary>>) -> dec(B);
-dec(<<?TAG:3, ?SIZE4:5, _:4/bytes, B/binary>>) -> dec(B);
-dec(<<?TAG:3, ?SIZE8:5, _:8/bytes, B/binary>>) -> dec(B);
-dec(<<?TAG:3, _:5, B/binary>>) -> dec(B);
+dec(<<?BSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
+dec(<<?BSTR(S), B/binary>>) -> dec_binary(S, B);
+dec(<<?TSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
+dec(<<?TSTR(S), B/binary>>) -> dec_binary(S, B);
+dec(<<?ARRAY(?INDEFINITE), B/binary>>) -> dec_array(B);
+dec(<<?ARRAY(S), B/binary>>) -> dec_tuple(S, B);
+dec(<<?MAP(?INDEFINITE), B/binary>>) -> dec_map(B);
+dec(<<?MAP(S), B/binary>>) -> dec_map(S, B);
+dec(<<?TAG0(0), B/binary>>) -> dec_datetime(B);
+dec(<<?TAG0(1), B/binary>>) -> dec_seconds(B);
+dec(<<?TAG0(2), ?BSTR(S), B/binary>>) -> dec_big_pos_integer(S, B);
+dec(<<?TAG0(3), ?BSTR(S), B/binary>>) -> dec_big_neg_integer(S, B);
+dec(<<?TAG0(6), ?TSTR(S), B/binary>>) -> dec_atom(S, B);
+dec(<<?TAG1(_), B/binary>>) -> dec(B);
+dec(<<?TAG2(_), B/binary>>) -> dec(B);
+dec(<<?TAG4(_), B/binary>>) -> dec(B);
+dec(<<?TAG8(_), B/binary>>) -> dec(B);
+dec(<<?TAG0(_), B/binary>>) -> dec(B);
 dec(T) -> error(badarg, [T]).
 
 -compile({inline, dec_float16/1}).
@@ -122,7 +131,7 @@ enc_string(B, S) when S < 16#10000 -> <<?TYPE2(?TSTR, S), B/binary>>;
 enc_string(B, S) when S < 16#100000000 -> <<?TYPE4(?TSTR, S), B/binary>>;
 enc_string(B, S) when S < 16#10000000000000000 -> <<?TYPE8(?TSTR, S), B/binary>>.
 
-enc_list(L) -> [?INDEFINITE(?ARRAY)|encode_list(L)].
+enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|encode_list(L)].
 
 encode_list([H|L]) -> [enc(H)|encode_list(L)];
 encode_list([]) -> [?BREAK].
