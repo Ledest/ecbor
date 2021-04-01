@@ -185,10 +185,7 @@ enc_binary(B) ->
      end,
      B].
 
-enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|encode_list(L)].
-
-encode_list([H|L]) -> [enc(H)|encode_list(L)];
-encode_list([]) -> [?BREAK].
+enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|lists:foldr(fun(E, A) -> [enc(E)|A] end, [?BREAK], L)].
 
 enc_tuple(T) ->
     S = tuple_size(T),
