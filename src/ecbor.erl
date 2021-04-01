@@ -175,13 +175,15 @@ dec_float16(<<_, S:1, E:5, F:10, B/binary>>) ->
 enc_integer(I) when I >= 0 -> enc_pos_integer(I);
 enc_integer(I) -> enc_neg_integer(I).
 
-enc_binary(B) -> enc_binary(B, byte_size(B)).
-
-enc_binary(B, S) when S < 24 -> <<?BSTR0(S), B/binary>>;
-enc_binary(B, S) when S < 16#100 -> <<?BSTR1(S), B/binary>>;
-enc_binary(B, S) when S < 16#10000 -> <<?BSTR2(S), B/binary>>;
-enc_binary(B, S) when S < 16#100000000 -> <<?BSTR4(S), B/binary>>;
-enc_binary(B, S) when S < 16#10000000000000000 -> <<?BSTR8(S), B/binary>>.
+enc_binary(B) ->
+    [case byte_size(B) of
+         S when S < 24 -> <<?BSTR0(S)>>;
+         S when S < 16#100 -> <<?BSTR1(S)>>;
+         S when S < 16#10000 -> <<?BSTR2(S)>>;
+         S when S < 16#100000000 -> <<?BSTR4(S)>>;
+         S when S < 16#10000000000000000 -> <<?BSTR8(S)>>
+     end,
+     B].
 
 enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|encode_list(L)].
 
