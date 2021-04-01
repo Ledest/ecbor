@@ -238,9 +238,8 @@ enc_atom(A) ->
      end,
      B].
 
-enc_datetime(DT) ->
-    I = calendar:datetime_to_gregorian_seconds(DT) - calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-    [<<?TAG_SECONDS>>, enc_integer(I)].
+-define(SECONDS_SINCE_1970, 62167219200). % calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})
+enc_datetime(DT) -> [<<?TAG_SECONDS>>, enc_integer(calendar:datetime_to_gregorian_seconds(DT) - ?SECONDS_SINCE_1970)].
 
 enc_pos_integer(I) when I < 24 -> <<?PINT0(I)>>;
 enc_pos_integer(I) when I < 16#100 -> <<?PINT1(I)>>;
