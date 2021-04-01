@@ -14,11 +14,12 @@
 -define(BREAK, 16#FF).
 -define(INDEFINITE(T), (?TYPE(T) bor ?INDEFINITE)).
 
+-define(TYPE(T, L, S, B), T:3, L:5, S:B).
 -define(TYPE0(T, S), T:3, S:5).
--define(TYPE1(T, S), T:3, ?SIZE1:5, S).
--define(TYPE2(T, S), T:3, ?SIZE2:5, S:16).
--define(TYPE4(T, S), T:3, ?SIZE4:5, S:32).
--define(TYPE8(T, S), T:3, ?SIZE8:5, S:64).
+-define(TYPE1(T, S), ?TYPE(T, ?SIZE1, S, 8)).
+-define(TYPE2(T, S), ?TYPE(T, ?SIZE2, S, 16)).
+-define(TYPE4(T, S), ?TYPE(T, ?SIZE4, S, 32)).
+-define(TYPE8(T, S), ?TYPE(T, ?SIZE8, S, 64)).
 
 -define(PINT, 0).
 -define(NINT, 1).
