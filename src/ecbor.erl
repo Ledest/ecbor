@@ -8,23 +8,35 @@
 -define(SIZE4, 26).
 -define(SIZE8, 27).
 
--define(TYPE(T), (T bsl 5)).
+-define(DATETIME, 0).
+-define(SECONDS, 1).
+-define(BIG_PINT, 2).
+-define(BIG_NINT, 3).
+-define(ATOM, 6).
 
 -define(INDEFINITE, 16#1F).
 -define(BREAK, 16#FF).
 
--define(TYPE(T, L, S, B), T:3, L:5, S:B/unit:8).
+-define(NEG(I), (-1 - I)).
+
+-define(TYPE(T, L, S), T:3, L:5, S:(1 bsl (L band 2#11))/unit:8).
 -define(TYPE0(T, S), T:3, S:5).
--define(TYPE1(T, S), ?TYPE(T, ?SIZE1, S, 1)).
--define(TYPE2(T, S), ?TYPE(T, ?SIZE2, S, 2)).
--define(TYPE4(T, S), ?TYPE(T, ?SIZE4, S, 4)).
--define(TYPE8(T, S), ?TYPE(T, ?SIZE8, S, 8)).
+-define(TYPE1(T, S), ?TYPE(T, ?SIZE1, S)).
+-define(TYPE2(T, S), ?TYPE(T, ?SIZE2, S)).
+-define(TYPE4(T, S), ?TYPE(T, ?SIZE4, S)).
+-define(TYPE8(T, S), ?TYPE(T, ?SIZE8, S)).
 
 -define(TAG0(S), ?TYPE0(?TAG, S)).
 -define(TAG1(S), ?TYPE1(?TAG, S)).
 -define(TAG2(S), ?TYPE2(?TAG, S)).
 -define(TAG4(S), ?TYPE4(?TAG, S)).
 -define(TAG8(S), ?TYPE8(?TAG, S)).
+
+-define(TAG_DATETIME, ?TAG0(?DATETIME)).
+-define(TAG_SECONDS, ?TAG0(?SECONDS)).
+-define(TAG_BIG_PINT, ?TAG0(?BIG_PINT)).
+-define(TAG_BIG_NINT, ?TAG0(?BIG_NINT)).
+-define(TAG_ATOM, ?TAG0(?ATOM)).
 
 -define(PINT, 0).
 -define(NINT, 1).
@@ -38,11 +50,46 @@
 -define(SIMPLE(N), ?TYPE0(?SIMPLE, N)).
 
 -define(PINT(S), ?TYPE0(?PINT, S)).
+-define(PINT0(S), ?TYPE0(?PINT, S)).
+-define(PINT1(S), ?TYPE1(?PINT, S)).
+-define(PINT2(S), ?TYPE2(?PINT, S)).
+-define(PINT4(S), ?TYPE4(?PINT, S)).
+-define(PINT8(S), ?TYPE8(?PINT, S)).
+
 -define(NINT(S), ?TYPE0(?NINT, S)).
+-define(NINT0(S), ?TYPE0(?NINT, S)).
+-define(NINT1(S), ?TYPE1(?NINT, S)).
+-define(NINT2(S), ?TYPE2(?NINT, S)).
+-define(NINT4(S), ?TYPE4(?NINT, S)).
+-define(NINT8(S), ?TYPE8(?NINT, S)).
+
 -define(BSTR(S), ?TYPE0(?BSTR, S)).
+-define(BSTR0(S), ?TYPE0(?BSTR, S)).
+-define(BSTR1(S), ?TYPE1(?BSTR, S)).
+-define(BSTR2(S), ?TYPE2(?BSTR, S)).
+-define(BSTR4(S), ?TYPE4(?BSTR, S)).
+-define(BSTR8(S), ?TYPE8(?BSTR, S)).
+
 -define(TSTR(S), ?TYPE0(?TSTR, S)).
+-define(TSTR0(S), ?TYPE0(?TSTR, S)).
+-define(TSTR1(S), ?TYPE1(?TSTR, S)).
+-define(TSTR2(S), ?TYPE2(?TSTR, S)).
+-define(TSTR4(S), ?TYPE4(?TSTR, S)).
+-define(TSTR8(S), ?TYPE8(?TSTR, S)).
+
 -define(ARRAY(S), ?TYPE0(?ARRAY, S)).
+-define(ARRAY0(S), ?TYPE0(?ARRAY, S)).
+-define(ARRAY1(S), ?TYPE1(?ARRAY, S)).
+-define(ARRAY2(S), ?TYPE2(?ARRAY, S)).
+-define(ARRAY4(S), ?TYPE4(?ARRAY, S)).
+-define(ARRAY8(S), ?TYPE8(?ARRAY, S)).
+
 -define(MAP(S), ?TYPE0(?MAP, S)).
+-define(MAP0(S), ?TYPE0(?MAP, S)).
+-define(MAP1(S), ?TYPE1(?MAP, S)).
+-define(MAP2(S), ?TYPE2(?MAP, S)).
+-define(MAP4(S), ?TYPE4(?MAP, S)).
+-define(MAP8(S), ?TYPE8(?MAP, S)).
 
 -define(FLOAT2, ?SIMPLE(25)).
 -define(FLOAT4, ?SIMPLE(26)).
@@ -103,11 +150,11 @@ dec(<<?ARRAY(?INDEFINITE), B/binary>>) -> dec_array(B);
 dec(<<?ARRAY(S), B/binary>>) -> dec_tuple(S, B);
 dec(<<?MAP(?INDEFINITE), B/binary>>) -> dec_map(B);
 dec(<<?MAP(S), B/binary>>) -> dec_map(S, B);
-dec(<<?TAG0(0), B/binary>>) -> dec_datetime(B);
-dec(<<?TAG0(1), B/binary>>) -> dec_seconds(B);
-dec(<<?TAG0(2), ?BSTR(S), B/binary>>) -> dec_big_pos_integer(S, B);
-dec(<<?TAG0(3), ?BSTR(S), B/binary>>) -> dec_big_neg_integer(S, B);
-dec(<<?TAG0(6), ?TSTR(S), B/binary>>) -> dec_atom(S, B);
+dec(<<?TAG_DATETIME, B/binary>>) -> dec_datetime(B);
+dec(<<?TAG_SECONDS, B/binary>>) -> dec_seconds(B);
+dec(<<?TAG_BIG_PINT, ?BSTR(S), B/binary>>) -> dec_big_pos_integer(S, B);
+dec(<<?TAG_BIG_NINT, ?BSTR(S), B/binary>>) -> dec_big_neg_integer(S, B);
+dec(<<?TAG_ATOM, ?TSTR(S), B/binary>>) -> dec_atom(S, B);
 dec(<<?TAG1(_), B/binary>>) -> dec(B);
 dec(<<?TAG2(_), B/binary>>) -> dec(B);
 dec(<<?TAG4(_), B/binary>>) -> dec(B);
@@ -129,19 +176,19 @@ enc_integer(I) -> enc_neg_integer(I).
 
 enc_binary(B) -> enc_binary(B, byte_size(B)).
 
-enc_binary(B, S) when S < 24 -> <<?TYPE0(?BSTR, S), B/binary>>;
-enc_binary(B, S) when S < 16#100 -> <<?TYPE1(?BSTR, S), B/binary>>;
-enc_binary(B, S) when S < 16#10000 -> <<?TYPE2(?BSTR, S), B/binary>>;
-enc_binary(B, S) when S < 16#100000000 -> <<?TYPE4(?BSTR, S), B/binary>>;
-enc_binary(B, S) when S < 16#10000000000000000 -> <<?TYPE8(?BSTR, S), B/binary>>.
+enc_binary(B, S) when S < 24 -> <<?BSTR0(S), B/binary>>;
+enc_binary(B, S) when S < 16#100 -> <<?BSTR1(S), B/binary>>;
+enc_binary(B, S) when S < 16#10000 -> <<?BSTR2(S), B/binary>>;
+enc_binary(B, S) when S < 16#100000000 -> <<?BSTR4(S), B/binary>>;
+enc_binary(B, S) when S < 16#10000000000000000 -> <<?BSTR8(S), B/binary>>.
 
 enc_string(B) -> enc_string(B, byte_size(B)).
 
-enc_string(B, S) when S < 24 -> <<?TYPE0(?TSTR, S), B/binary>>;
-enc_string(B, S) when S < 16#100 -> <<?TYPE1(?TSTR, S), B/binary>>;
-enc_string(B, S) when S < 16#10000 -> <<?TYPE2(?TSTR, S), B/binary>>;
-enc_string(B, S) when S < 16#100000000 -> <<?TYPE4(?TSTR, S), B/binary>>;
-enc_string(B, S) when S < 16#10000000000000000 -> <<?TYPE8(?TSTR, S), B/binary>>.
+enc_string(B, S) when S < 24 -> <<?TSTR0(S), B/binary>>;
+enc_string(B, S) when S < 16#100 -> <<?TSTR1(S), B/binary>>;
+enc_string(B, S) when S < 16#10000 -> <<?TSTR2(S), B/binary>>;
+enc_string(B, S) when S < 16#100000000 -> <<?TSTR4(S), B/binary>>;
+enc_string(B, S) when S < 16#10000000000000000 -> <<?TSTR8(S), B/binary>>.
 
 enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|encode_list(L)].
 
@@ -151,11 +198,11 @@ encode_list([]) -> [?BREAK].
 enc_tuple(T) ->
     S = tuple_size(T),
     [if
-         S < 24 -> <<?TYPE0(?ARRAY, S)>>;
-         S < 16#100 -> <<?TYPE1(?ARRAY, S)>>;
-         S < 16#10000 -> <<?TYPE2(?ARRAY, S)>>;
-         S < 16#100000000 -> <<?TYPE4(?ARRAY, S)>>;
-         S < 16#10000000000000000 -> <<?TYPE8(?ARRAY, S)>>
+         S < 24 -> <<?ARRAY0(S)>>;
+         S < 16#100 -> <<?ARRAY1(S)>>;
+         S < 16#10000 -> <<?ARRAY2(S)>>;
+         S < 16#100000000 -> <<?ARRAY4(S)>>;
+         S < 16#10000000000000000 -> <<?ARRAY8(S)>>
      end|enc_tuple(T, S, [])].
 
 enc_tuple(_, 0, A) -> A;
@@ -163,11 +210,11 @@ enc_tuple(T, S, A) -> enc_tuple(T, S - 1, [enc(element(S, T))|A]).
 
 enc_map(M) ->
     [case map_size(M) of
-         S when S < 24 -> <<?TYPE0(?MAP, S)>>;
-         S when S < 16#100 -> <<?TYPE1(?MAP, S)>>;
-         S when S < 16#10000 -> <<?TYPE2(?MAP, S)>>;
-         S when S < 16#100000000 -> <<?TYPE4(?MAP, S)>>;
-         S when S < 16#10000000000000000 -> <<?TYPE8(?MAP, S)>>
+         S when S < 24 -> <<?MAP0(S)>>;
+         S when S < 16#100 -> <<?MAP1(S)>>;
+         S when S < 16#10000 -> <<?MAP2(S)>>;
+         S when S < 16#100000000 -> <<?MAP4(S)>>;
+         S when S < 16#10000000000000000 -> <<?MAP8(S)>>
      end|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
 
 -ifdef(HAVE_float16).
@@ -191,31 +238,31 @@ enc_float(F) ->
     end.
 -endif.
 
-enc_atom(A) -> [?TYPE(?TAG) + 6, enc_string(atom_to_binary(A, utf8))].
+enc_atom(A) -> [<<?TAG_ATOM>>, enc_string(atom_to_binary(A, utf8))].
 
 enc_datetime(DT) ->
     I = calendar:datetime_to_gregorian_seconds(DT) - calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-    [?TYPE(?TAG) + 1, enc_integer(I)].
+    [<<?TAG_SECONDS>>, enc_integer(I)].
 
-enc_pos_integer(I) when I < 24 -> <<?TYPE0(?PINT, I)>>;
-enc_pos_integer(I) when I < 16#100 -> <<?TYPE1(?PINT, I)>>;
-enc_pos_integer(I) when I < 16#10000 -> <<?TYPE2(?PINT, I)>>;
-enc_pos_integer(I) when I < 16#100000000 -> <<?TYPE4(?PINT, I)>>;
-enc_pos_integer(I) when I < 16#10000000000000000 -> <<?TYPE8(?PINT, I)>>;
-enc_pos_integer(I) -> [?TYPE(?TAG) + 2, enc_binary(binary:encode_unsigned(I))].
+enc_pos_integer(I) when I < 24 -> <<?PINT0(I)>>;
+enc_pos_integer(I) when I < 16#100 -> <<?PINT1(I)>>;
+enc_pos_integer(I) when I < 16#10000 -> <<?PINT2(I)>>;
+enc_pos_integer(I) when I < 16#100000000 -> <<?PINT4(I)>>;
+enc_pos_integer(I) when I < 16#10000000000000000 -> <<?PINT8(I)>>;
+enc_pos_integer(I) -> [<<?TAG_BIG_PINT>>, enc_binary(binary:encode_unsigned(I))].
 
-enc_neg_integer(I) when I >= -24 -> <<?TYPE0(?NINT, (-1 - I))>>;
-enc_neg_integer(I) when I >= -16#100 -> <<?TYPE1(?NINT, (-1 - I))>>;
-enc_neg_integer(I) when I >= -16#10000 -> <<?TYPE2(?NINT, (-1 - I))>>;
-enc_neg_integer(I) when I >= -16#100000000 -> <<?TYPE4(?NINT, (-1 - I))>>;
-enc_neg_integer(I) when I >= -16#10000000000000000 -> <<?TYPE8(?NINT, (-1 - I))>>;
-enc_neg_integer(I) -> [?TYPE(?TAG) + 3, enc_binary(binary:encode_unsigned(-1 - I))].
+enc_neg_integer(I) when I >= -24 -> <<?NINT0(?NEG(I))>>;
+enc_neg_integer(I) when I >= -16#100 -> <<?NINT1(?NEG(I))>>;
+enc_neg_integer(I) when I >= -16#10000 -> <<?NINT2(?NEG(I))>>;
+enc_neg_integer(I) when I >= -16#100000000 -> <<?NINT4(?NEG(I))>>;
+enc_neg_integer(I) when I >= -16#10000000000000000 -> <<?NINT8(?NEG(I))>>;
+enc_neg_integer(I) -> [<<?TAG_BIG_NINT>>, enc_binary(binary:encode_unsigned(?NEG(I)))].
 
 dec_pos_integer(S, B) -> sb(S, B).
 
 dec_neg_integer(S, B) ->
     {I, R} = sb(S, B),
-    {-1 - I, R}.
+    {?NEG(I), R}.
 
 dec_big_pos_integer(S, B) ->
     {I, R} = dec_binary(S, B),
@@ -223,7 +270,7 @@ dec_big_pos_integer(S, B) ->
 
 dec_big_neg_integer(S, B) ->
     {I, R} = dec_big_pos_integer(S, B),
-    {-1 -I, R}.
+    {?NEG(I), R}.
 
 dec_binary(S, B) ->
     {N, R} = sb(S, B),
@@ -284,7 +331,4 @@ dec_datetime(B) ->
     {calendar:system_time_to_universal_time(calendar:rfc3339_to_system_time(binary_to_list(S)), seconds), R}.
 
 sb(S, B) when S < 24 -> {S, B};
-sb(S, B) ->
-    N = 1 bsl (S band 2#11),
-    <<I:N/unit:8, R/binary>> = B,
-    {I, R}.
+sb(S, B) -> split_binary(B, 1 bsl (S band 2#11)).
