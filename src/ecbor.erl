@@ -1,7 +1,7 @@
 -module(ecbor).
 
--export([encode/1, decode/1]).
--export([enc/1, dec/1]).
+-export([encode/1, decode/1, encode_seq/1, decode_seq/1]).
+-export([enc/1, dec/1, enc_seq/1, dec_seq/1]).
 
 -define(SIZE1, 24).
 -define(SIZE2, 25).
@@ -50,9 +50,16 @@
 
 encode(T) -> iolist_to_binary(enc(T)).
 
+encode_seq(L) -> list_to_binary(enc_seq(L)).
+
+
 decode(B) ->
     {T, _} = dec(B),
     T.
+
+decode_seq(B) -> dec_seq(B).
+
+enc_seq(L) -> lists:map(fun enc/1, L).
 
 enc(false) -> <<?SIMPLE(20)>>;
 enc(true) -> <<?SIMPLE(21)>>;
@@ -73,6 +80,11 @@ enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
 enc(T) -> error(badarg, [T]).
+
+dec_seq(<<>>) -> [];
+dec_seq(B) ->
+    {T, R} = dec(B),
+    [T|dec_seq(R)].
 
 dec(<<?SIMPLE(20), R/binary>>) -> {false, R};
 dec(<<?SIMPLE(21), R/binary>>) -> {true, R};
