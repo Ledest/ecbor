@@ -139,7 +139,7 @@ dec(<<?SIMPLE(22), R/binary>>) -> {null, R};
 dec(<<?SIMPLE(23), R/binary>>) -> {undefined, R};
 dec(<<?FLOAT8, F/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
-dec(<<?FLOAT2, _/binary>> = B) -> dec_float16(B);
+dec(<<?FLOAT2, F:2/binary, B/binary>>) -> {dec_float16(F), B};
 dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(S, B);
 dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(S, B);
 dec(<<?BSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
@@ -165,11 +165,11 @@ dec(T) -> error(badarg, [T]).
 
 -compile({inline, dec_float16/1}).
 -ifdef(HAVE_float16).
-dec_float16(<<_, F:16/float, B/binary>>) -> {F, B}.
+dec_float16(<<F:16/float>>) -> F.
 -else.
-dec_float16(<<_, S:1, E:5, F:10, B/binary>>) ->
+dec_float16(<<S:1, E:5, F:10>>) ->
     <<T:32/float>> = <<S:1, (E + (127 - 15)):8, F:10, 0:13>>,
-    {T, B}.
+    T.
 -endif.
 
 enc_integer(I) when I >= 0 -> enc_pos_integer(I);
