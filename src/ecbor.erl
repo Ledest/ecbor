@@ -154,7 +154,8 @@ dec(<<?TAG_DATETIME, B/binary>>) -> dec_datetime(B);
 dec(<<?TAG_SECONDS, B/binary>>) -> dec_seconds(B);
 dec(<<?TAG_BIG_PINT, ?BSTR(S), B/binary>>) -> dec_big_pos_integer(S, B);
 dec(<<?TAG_BIG_NINT, ?BSTR(S), B/binary>>) -> dec_big_neg_integer(S, B);
-dec(<<?TAG_ATOM, ?TSTR(S), B/binary>>) -> dec_atom(S, B);
+dec(<<?TAG_ATOM, ?TSTR0(S), B/binary>>) when S < 24 -> dec_atom(S, B);
+dec(<<?TAG_ATOM, ?TSTR1(S), B/binary>>) -> dec_atom(S, B);
 dec(<<?TAG1(_), B/binary>>) -> dec(B);
 dec(<<?TAG2(_), B/binary>>) -> dec(B);
 dec(<<?TAG4(_), B/binary>>) -> dec(B);
@@ -181,14 +182,6 @@ enc_binary(B, S) when S < 16#100 -> <<?BSTR1(S), B/binary>>;
 enc_binary(B, S) when S < 16#10000 -> <<?BSTR2(S), B/binary>>;
 enc_binary(B, S) when S < 16#100000000 -> <<?BSTR4(S), B/binary>>;
 enc_binary(B, S) when S < 16#10000000000000000 -> <<?BSTR8(S), B/binary>>.
-
-enc_string(B) -> enc_string(B, byte_size(B)).
-
-enc_string(B, S) when S < 24 -> <<?TSTR0(S), B/binary>>;
-enc_string(B, S) when S < 16#100 -> <<?TSTR1(S), B/binary>>;
-enc_string(B, S) when S < 16#10000 -> <<?TSTR2(S), B/binary>>;
-enc_string(B, S) when S < 16#100000000 -> <<?TSTR4(S), B/binary>>;
-enc_string(B, S) when S < 16#10000000000000000 -> <<?TSTR8(S), B/binary>>.
 
 enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|encode_list(L)].
 
@@ -238,7 +231,14 @@ enc_float(F) ->
     end.
 -endif.
 
-enc_atom(A) -> [<<?TAG_ATOM>>, enc_string(atom_to_binary(A, utf8))].
+enc_atom(A) ->
+    B = atom_to_binary(A, utf8),
+    [<<?TAG_ATOM>>,
+     case byte_size(B) of
+         S when S < 24 -> <<?TSTR0(S)>>;
+         S -> <<?TSTR1(S)>>
+     end,
+     B].
 
 enc_datetime(DT) ->
     I = calendar:datetime_to_gregorian_seconds(DT) - calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
@@ -277,8 +277,8 @@ dec_binary(S, B) ->
     split_binary(R, N).
 
 dec_atom(S, B) ->
-    {A, R} = dec_binary(S, B),
-    {binary_to_atom(A, utf8), R}.
+    {A, R} = split_binary(B, S),
+    {binary_to_atom(A), R}.
 
 dec_binaries(B) ->
     {L, R} = dec_array(B),
