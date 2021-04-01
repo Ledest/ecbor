@@ -30,7 +30,7 @@
 -define(TAG, 6).
 -define(SIMPLE, 7).
 
--define(SIMPLE(N), (?TYPE(?SIMPLE) bor N)).
+-define(SIMPLE(N), ?TYPE0(?SIMPLE, N)).
 
 -define(FLOAT2, ?SIMPLE(25)).
 -define(FLOAT4, ?SIMPLE(26)).
@@ -42,10 +42,10 @@ decode(B) ->
     {T, _} = dec(B),
     T.
 
-enc(false) -> ?SIMPLE(20);
-enc(true) -> ?SIMPLE(21);
-enc(null) -> ?SIMPLE(22);
-enc(undefined) -> ?SIMPLE(23);
+enc(false) -> <<?SIMPLE(20)>>;
+enc(true) -> <<?SIMPLE(21)>>;
+enc(null) -> <<?SIMPLE(22)>>;
+enc(undefined) -> <<?SIMPLE(23)>>;
 enc(I) when is_integer(I) -> enc_integer(I);
 enc(F) when is_float(F) -> enc_float(F);
 enc(B) when is_binary(B) -> enc_binary(B);
