@@ -215,15 +215,11 @@ enc_map(M) ->
 -ifdef(HAVE_float16).
 enc_float(F) ->
     case <<F:16/float>> of
-        <<F:16/float>> = F2 ->
-            io:fwrite("1: B = ~p~n", [F2]),
-            <<?FLOAT2, F2/binary>>;
-        F2 ->
-            io:fwrite("2: B = ~p~n", [F2]),
-            case <<F:32/float>> of
-                <<F:32/float>> = F4 -> <<?FLOAT4, F4/binary>>;
-                _ -> <<?FLOAT8, F/float>>
-            end
+        <<F:16/float>> = F2 -> <<?FLOAT2, F2/binary>>;
+        _ -> case <<F:32/float>> of
+                 <<F:32/float>> = F4 -> <<?FLOAT4, F4/binary>>;
+                 _ -> <<?FLOAT8, F/float>>
+             end
     end.
 -else.
 enc_float(F) ->
