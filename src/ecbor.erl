@@ -170,7 +170,26 @@ enc_map(M) ->
          S when S < 16#10000000000000000 -> <<?TYPE8(?MAP, S)>>
      end|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
 
-enc_float(F) -> <<?FLOAT8, F/float>>.
+-ifdef(HAVE_float16).
+enc_float(F) ->
+    case <<F:16/float>> of
+        <<F:16/float>> = F2 ->
+            io:fwrite("1: B = ~p~n", [F2]),
+            <<?FLOAT2, F2/binary>>;
+        F2 ->
+            io:fwrite("2: B = ~p~n", [F2]),
+            case <<F:32/float>> of
+                <<F:32/float>> = F4 -> <<?FLOAT4, F4/binary>>;
+                _ -> <<?FLOAT8, F/float>>
+            end
+    end.
+-else.
+enc_float(F) ->
+    case <<F:32/float>> of
+        <<F:32/float>> = F4 -> <<?FLOAT4, F4/binary>>;
+        _ -> <<?FLOAT8, F/float>>
+    end.
+-endif.
 
 enc_atom(A) -> [?TYPE(?TAG) + 6, enc_string(atom_to_binary(A, utf8))].
 
