@@ -32,6 +32,9 @@
 
 -define(SIMPLE(N), ?TYPE0(?SIMPLE, N)).
 
+-define(PINT(S), ?TYPE0(?PINT, S)).
+-define(NINT(S), ?TYPE0(?NINT, S)).
+
 -define(FLOAT2, ?SIMPLE(25)).
 -define(FLOAT4, ?SIMPLE(26)).
 -define(FLOAT8, ?SIMPLE(27)).
@@ -69,8 +72,8 @@ dec(<<?SIMPLE(23), R/binary>>) -> {undefined, R};
 dec(<<?FLOAT8, F/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT2, _/binary>> = B) -> dec_float16(B);
-dec(<<?PINT:3, S:5, B/binary>>) -> dec_pos_integer(S, B);
-dec(<<?NINT:3, S:5, B/binary>>) -> dec_neg_integer(S, B);
+dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(S, B);
+dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(S, B);
 dec(<<?INDEFINITE(?BSTR), B/binary>>) -> dec_binaries(B);
 dec(<<?INDEFINITE(?TSTR), B/binary>>) -> dec_binaries(B);
 dec(<<?INDEFINITE(?ARRAY), B/binary>>) -> dec_array(B);
