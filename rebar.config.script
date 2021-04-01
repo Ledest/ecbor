@@ -1,8 +1,8 @@
 try <<0:16/float>> of
-    _ -> lists:keystore(erl_opt, 1, CONFIG, {erl_opt, case lists:keyfind(erl_opt, 1, CONFIG) of
-                                                          {_, O} -> [{d, 'HAVE_float16'}|O];
-                                                          _ -> [{d, 'HAVE_float16'}]
-                                                      end})
+    _ -> lists:keystore(erl_opts, 1, CONFIG, {erl_opts, case lists:keyfind(erl_opts, 1, CONFIG) of
+                                                            {_, O} -> [{d, 'HAVE_float16'}|O];
+                                                            _ -> [{d, 'HAVE_float16'}]
+                                                        end})
 catch
     error:badarg -> CONFIG
 end.
