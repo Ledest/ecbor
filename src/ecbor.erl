@@ -8,6 +8,8 @@
 -define(SIZE4, 26).
 -define(SIZE8, 27).
 
+-define(SIZE(S), (1 bsl (S band 2#11))).
+
 -define(DATETIME, 0).
 -define(SECONDS, 1).
 -define(BIG_PINT, 2).
@@ -19,7 +21,7 @@
 
 -define(NEG(I), (-1 - I)).
 
--define(TYPE(T, L, S), T:3, L:5, S:(1 bsl (L band 2#11))/unit:8).
+-define(TYPE(T, L, S), T:3, L:5, S:?SIZE(L)/unit:8).
 -define(TYPE0(T, S), T:3, S:5).
 -define(TYPE1(T, S), ?TYPE(T, ?SIZE1, S)).
 -define(TYPE2(T, S), ?TYPE(T, ?SIZE2, S)).
@@ -140,22 +142,22 @@ dec(<<?SIMPLE(23), R/binary>>) -> {undefined, R};
 dec(<<?FLOAT8, F/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
 dec(<<?FLOAT2, F:2/binary, B/binary>>) -> {dec_float16(F), B};
-dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(S, B);
-dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(S, B);
+dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(B, S);
+dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(B, S);
 dec(<<?BSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
-dec(<<?BSTR(S), B/binary>>) -> dec_binary(S, B);
+dec(<<?BSTR(S), B/binary>>) -> dec_binary(B, S);
 dec(<<?TSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
-dec(<<?TSTR(S), B/binary>>) -> dec_binary(S, B);
+dec(<<?TSTR(S), B/binary>>) -> dec_binary(B, S);
 dec(<<?ARRAY(?INDEFINITE), B/binary>>) -> dec_array(B);
-dec(<<?ARRAY(S), B/binary>>) -> dec_tuple(S, B);
+dec(<<?ARRAY(S), B/binary>>) -> dec_tuple(B, S);
 dec(<<?MAP(?INDEFINITE), B/binary>>) -> dec_map(B);
-dec(<<?MAP(S), B/binary>>) -> dec_map(S, B);
+dec(<<?MAP(S), B/binary>>) -> dec_map(B, S);
 dec(<<?TAG_DATETIME, B/binary>>) -> dec_datetime(B);
 dec(<<?TAG_SECONDS, B/binary>>) -> dec_seconds(B);
-dec(<<?TAG_BIG_PINT, ?BSTR(S), B/binary>>) -> dec_big_pos_integer(S, B);
-dec(<<?TAG_BIG_NINT, ?BSTR(S), B/binary>>) -> dec_big_neg_integer(S, B);
-dec(<<?TAG_ATOM, ?TSTR0(S), B/binary>>) when S < 24 -> dec_atom(S, B);
-dec(<<?TAG_ATOM, ?TSTR1(S), B/binary>>) -> dec_atom(S, B);
+dec(<<?TAG_BIG_PINT, ?BSTR(S), B/binary>>) -> dec_big_pos_integer(B, S);
+dec(<<?TAG_BIG_NINT, ?BSTR(S), B/binary>>) -> dec_big_neg_integer(B, S);
+dec(<<?TAG_ATOM, ?TSTR0(S), B/binary>>) when S < 24 -> dec_atom(B, S);
+dec(<<?TAG_ATOM, ?TSTR1(S), B/binary>>) -> dec_atom(B, S);
 dec(<<?TAG1(_), B/binary>>) -> dec(B);
 dec(<<?TAG2(_), B/binary>>) -> dec(B);
 dec(<<?TAG4(_), B/binary>>) -> dec(B);
@@ -251,25 +253,25 @@ enc_neg_integer(I) when I >= -16#100000000 -> <<?NINT4(?NEG(I))>>;
 enc_neg_integer(I) when I >= -16#10000000000000000 -> <<?NINT8(?NEG(I))>>;
 enc_neg_integer(I) -> [<<?TAG_BIG_NINT>>, enc_binary(binary:encode_unsigned(?NEG(I)))].
 
-dec_pos_integer(S, B) -> sb(S, B).
+dec_pos_integer(B, S) -> bs(B, S).
 
-dec_neg_integer(S, B) ->
-    {I, R} = sb(S, B),
+dec_neg_integer(B, S) ->
+    {I, R} = bs(B, S),
     {?NEG(I), R}.
 
-dec_big_pos_integer(S, B) ->
-    {I, R} = dec_binary(S, B),
+dec_big_pos_integer(B, S) ->
+    {I, R} = dec_binary(B, S),
     {binary:decode_unsigned(I), R}.
 
-dec_big_neg_integer(S, B) ->
-    {I, R} = dec_big_pos_integer(S, B),
+dec_big_neg_integer(B, S) ->
+    {I, R} = dec_big_pos_integer(B, S),
     {?NEG(I), R}.
 
-dec_binary(S, B) ->
-    {N, R} = sb(S, B),
+dec_binary(B, S) ->
+    {N, R} = bs(B, S),
     split_binary(R, N).
 
-dec_atom(S, B) ->
+dec_atom(B, S) ->
     {A, R} = split_binary(B, S),
     {binary_to_atom(A), R}.
 
@@ -283,8 +285,8 @@ dec_array(B) ->
     {A, E} = dec_array(R),
     {[T|A], E}.
 
-dec_array(S, B) ->
-    {N, R} = sb(S, B),
+dec_array(B, S) ->
+    {N, R} = bs(B, S),
     decode_array(N, R).
 
 decode_array(0, B) -> {[], B};
@@ -293,12 +295,12 @@ decode_array(S, B) ->
     {A, E} = decode_array(S - 1, R),
     {[T|A], E}.
 
-dec_tuple(S, B) ->
-    {L, R} = dec_array(S, B),
+dec_tuple(B, S) ->
+    {L, R} = dec_array(B, S),
     {list_to_tuple(L), R}.
 
-dec_map(S, B) ->
-    {N, R} = sb(S, B),
+dec_map(B, S) ->
+    {N, R} = bs(B, S),
     decode_map(N, R).
 
 decode_map(0, B) -> {#{}, B};
@@ -323,5 +325,5 @@ dec_datetime(B) ->
     {S, R} = dec(B),
     {calendar:system_time_to_universal_time(calendar:rfc3339_to_system_time(binary_to_list(S)), seconds), R}.
 
-sb(S, B) when S < 24 -> {S, B};
-sb(S, B) -> split_binary(B, 1 bsl (S band 2#11)).
+bs(B, S) when S < 24 -> {S, B};
+bs(B, S) -> split_binary(B, ?SIZE(S)).
