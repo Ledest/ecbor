@@ -16,6 +16,16 @@
 -define(BIG_NINT, 3).
 -define(ATOM, 6).
 
+-define(PINT, 0).
+-define(NINT, 1).
+-define(BSTR, 2).
+-define(TSTR, 3).
+-define(ARRAY, 4).
+-define(MAP, 5).
+-define(TAG, 6).
+-define(SIMPLE, 7).
+-define(FLOAT, 7).
+
 -define(INDEFINITE, 16#1F).
 -define(BREAK, 16#FF).
 
@@ -40,16 +50,8 @@
 -define(TAG_BIG_NINT, ?TAG0(?BIG_NINT)).
 -define(TAG_ATOM, ?TAG0(?ATOM)).
 
--define(PINT, 0).
--define(NINT, 1).
--define(BSTR, 2).
--define(TSTR, 3).
--define(ARRAY, 4).
--define(MAP, 5).
--define(TAG, 6).
--define(SIMPLE, 7).
-
 -define(SIMPLE(N), ?TYPE0(?SIMPLE, N)).
+-define(FLOAT(N), ?TYPE0(?FLOAT, N)).
 
 -define(PINT(S), ?TYPE0(?PINT, S)).
 -define(PINT0(S), ?TYPE0(?PINT, S)).
@@ -93,9 +95,9 @@
 -define(MAP4(S), ?TYPE4(?MAP, S)).
 -define(MAP8(S), ?TYPE8(?MAP, S)).
 
--define(FLOAT2, ?SIMPLE(25)).
--define(FLOAT4, ?SIMPLE(26)).
--define(FLOAT8, ?SIMPLE(27)).
+-define(FLOAT2, ?FLOAT(25)).
+-define(FLOAT4, ?FLOAT(26)).
+-define(FLOAT8, ?FLOAT(27)).
 
 encode(T) -> iolist_to_binary(enc(T)).
 
@@ -118,13 +120,6 @@ enc(I) when is_integer(I) -> enc_integer(I);
 enc(F) when is_float(F) -> enc_float(F);
 enc(B) when is_binary(B) -> enc_binary(B);
 enc(L) when is_list(L) -> enc_list(L);
-enc({{Y, Month, D} = Date, {H, M, S}} = DT) when is_integer(Y), is_integer(Month), is_integer(D),
-                                                 is_integer(H), is_integer(M), is_integer(S),
-                                                 Month =< 12, D =< 31, H < 24, M < 60, S < 60 ->
-    case calendar:valid_date(Date) of
-        true -> enc_datetime(DT);
-        _false -> enc_tuple(DT)
-    end;
 enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
@@ -139,9 +134,9 @@ dec(<<?SIMPLE(20), R/binary>>) -> {false, R};
 dec(<<?SIMPLE(21), R/binary>>) -> {true, R};
 dec(<<?SIMPLE(22), R/binary>>) -> {null, R};
 dec(<<?SIMPLE(23), R/binary>>) -> {undefined, R};
-dec(<<?FLOAT8, F/float, B/binary>>) -> {F, B};
-dec(<<?FLOAT4, F:32/float, B/binary>>) -> {F, B};
-dec(<<?FLOAT2, F:2/binary, B/binary>>) -> {dec_float16(F), B};
+dec(<<?FLOAT8, F/float, R/binary>>) -> {F, R};
+dec(<<?FLOAT4, F:32/float, R/binary>>) -> {F, R};
+dec(<<?FLOAT2, F:2/binary, R/binary>>) -> {dec_float16(F), R};
 dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(B, S);
 dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(B, S);
 dec(<<?BSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
@@ -152,8 +147,6 @@ dec(<<?ARRAY(?INDEFINITE), B/binary>>) -> dec_array(B);
 dec(<<?ARRAY(S), B/binary>>) -> dec_tuple(B, S);
 dec(<<?MAP(?INDEFINITE), B/binary>>) -> dec_map(B);
 dec(<<?MAP(S), B/binary>>) -> dec_map(B, S);
-dec(<<?TAG_DATETIME, B/binary>>) -> dec_datetime(B);
-dec(<<?TAG_SECONDS, B/binary>>) -> dec_seconds(B);
 dec(<<?TAG_BIG_PINT, ?BSTR(S), B/binary>>) -> dec_big_pos_integer(B, S);
 dec(<<?TAG_BIG_NINT, ?BSTR(S), B/binary>>) -> dec_big_neg_integer(B, S);
 dec(<<?TAG_ATOM, ?TSTR0(S), B/binary>>) when S < 24 -> dec_atom(B, S);
@@ -236,9 +229,6 @@ enc_atom(A) ->
      end,
      B].
 
--define(SECONDS_SINCE_1970, 62167219200). % calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})
-enc_datetime(DT) -> [<<?TAG_SECONDS>>, enc_integer(calendar:datetime_to_gregorian_seconds(DT) - ?SECONDS_SINCE_1970)].
-
 enc_pos_integer(I) when I < 24 -> <<?PINT0(I)>>;
 enc_pos_integer(I) when I < 16#100 -> <<?PINT1(I)>>;
 enc_pos_integer(I) when I < 16#10000 -> <<?PINT2(I)>>;
@@ -317,13 +307,5 @@ dec_map(B) ->
     {M, R} = dec_map(R2),
     {M#{K => V}, R}.
 
-dec_seconds(B) ->
-    {S, R} = dec(B),
-    {calendar:system_time_to_universal_time(round(S), seconds), R}.
-
-dec_datetime(B) ->
-    {S, R} = dec(B),
-    {calendar:system_time_to_universal_time(calendar:rfc3339_to_system_time(binary_to_list(S)), seconds), R}.
-
 bs(B, S) when S < 24 -> {S, B};
-bs(B, S) -> split_binary(B, ?SIZE(S)).
+bs(B, S) when S =< 27 -> split_binary(B, ?SIZE(S)).
