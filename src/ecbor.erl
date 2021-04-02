@@ -181,7 +181,7 @@ enc_binary(B) ->
          S when S < 16#100 -> <<?BSTR1(S)>>;
          S when S < 16#10000 -> <<?BSTR2(S)>>;
          S when S < 16#100000000 -> <<?BSTR4(S)>>;
-         S when S < 16#10000000000000000 -> <<?BSTR8(S)>>
+         S -> <<?BSTR8(S)>>
      end,
      B].
 
@@ -193,8 +193,7 @@ enc_tuple(T) ->
          S < 24 -> <<?ARRAY0(S)>>;
          S < 16#100 -> <<?ARRAY1(S)>>;
          S < 16#10000 -> <<?ARRAY2(S)>>;
-         S < 16#100000000 -> <<?ARRAY4(S)>>;
-         S < 16#10000000000000000 -> <<?ARRAY8(S)>>
+         true -> <<?ARRAY4(S)>>
      end|enc_tuple(T, S, [])].
 
 enc_tuple(_, 0, A) -> A;
@@ -206,7 +205,7 @@ enc_map(M) ->
          S when S < 16#100 -> <<?MAP1(S)>>;
          S when S < 16#10000 -> <<?MAP2(S)>>;
          S when S < 16#100000000 -> <<?MAP4(S)>>;
-         S when S < 16#10000000000000000 -> <<?MAP8(S)>>
+         S -> <<?MAP8(S)>>
      end|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
 
 -ifdef(HAVE_float16).
