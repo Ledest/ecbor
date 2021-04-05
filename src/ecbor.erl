@@ -308,4 +308,7 @@ dec_map(B) ->
     {M#{K => V}, R}.
 
 bs(B, S) when S < 24 -> {S, B};
-bs(B, S) when S =< 27 -> split_binary(B, ?SIZE(S)).
+bs(B, S) when S =< 27 ->
+    N = 1 bsl (S band 2#11),
+    <<I:N/unit:8, R/binary>> = B,
+    {I, R}.
