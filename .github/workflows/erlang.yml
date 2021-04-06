@@ -20,4 +20,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Compile
-      run: ${{ matrix.rebar }} compile
+      run: ${{ matrix.rebar }} get-deps && ${{ matrix.rebar }} compile
