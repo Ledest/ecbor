@@ -14,7 +14,9 @@
 -define(SECONDS, 1).
 -define(BIG_PINT, 2).
 -define(BIG_NINT, 3).
--define(ATOM, 6).
+-define(ETERM, 131).
+-define(IS_ATOM(T), (T =:= 100 orelse T =:= 115)).
+-define(IS_UATOM(T), (T =:= 118 orelse T =:= 119)).
 
 -define(PINT, 0).
 -define(NINT, 1).
@@ -43,12 +45,6 @@
 -define(TAG2(S), ?TYPE2(?TAG, S)).
 -define(TAG4(S), ?TYPE4(?TAG, S)).
 -define(TAG8(S), ?TYPE8(?TAG, S)).
-
--define(TAG_DATETIME, ?TAG0(?DATETIME)).
--define(TAG_SECONDS, ?TAG0(?SECONDS)).
--define(TAG_BIG_PINT, ?TAG0(?BIG_PINT)).
--define(TAG_BIG_NINT, ?TAG0(?BIG_NINT)).
--define(TAG_ATOM, ?TAG0(?ATOM)).
 
 -define(SIMPLE(N), ?TYPE0(?SIMPLE, N)).
 -define(FLOAT(N), ?TYPE0(?FLOAT, N)).
@@ -123,85 +119,157 @@ enc(L) when is_list(L) -> enc_list(L);
 enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
-enc(T) -> error(badarg, [T]).
+enc(T) -> enc_eterm(T).
 
 dec_seq(<<>>) -> [];
 dec_seq(B) ->
     {T, R} = dec(B),
     [T|dec_seq(R)].
 
-dec(<<?SIMPLE(20), R/binary>>) -> {false, R};
-dec(<<?SIMPLE(21), R/binary>>) -> {true, R};
-dec(<<?SIMPLE(22), R/binary>>) -> {null, R};
-dec(<<?SIMPLE(23), R/binary>>) -> {undefined, R};
-dec(<<?FLOAT8, F/float, R/binary>>) -> {F, R};
-dec(<<?FLOAT4, F:32/float, R/binary>>) -> {F, R};
-dec(<<?FLOAT2, F:2/binary, R/binary>>) -> {dec_float16(F), R};
-dec(<<?PINT(S), B/binary>>) -> dec_pos_integer(B, S);
-dec(<<?NINT(S), B/binary>>) -> dec_neg_integer(B, S);
-dec(<<?BSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
-dec(<<?BSTR(S), B/binary>>) -> dec_binary(B, S);
-dec(<<?TSTR(?INDEFINITE), B/binary>>) -> dec_binaries(B);
-dec(<<?TSTR(S), B/binary>>) -> dec_binary(B, S);
-dec(<<?ARRAY(?INDEFINITE), B/binary>>) -> dec_array(B);
-dec(<<?ARRAY(S), B/binary>>) -> dec_tuple(B, S);
-dec(<<?MAP(?INDEFINITE), B/binary>>) -> dec_map(B);
-dec(<<?MAP(S), B/binary>>) -> dec_map(B, S);
-dec(<<?TAG_BIG_PINT, ?BSTR(S), B/binary>>) -> dec_big_pos_integer(B, S);
-dec(<<?TAG_BIG_NINT, ?BSTR(S), B/binary>>) -> dec_big_neg_integer(B, S);
-dec(<<?TAG_ATOM, ?TSTR0(S), B/binary>>) when S < 24 -> dec_atom(B, S);
-dec(<<?TAG_ATOM, ?TSTR1(S), B/binary>>) -> dec_atom(B, S);
-dec(<<?TAG1(_), B/binary>>) -> dec(B);
-dec(<<?TAG2(_), B/binary>>) -> dec(B);
-dec(<<?TAG4(_), B/binary>>) -> dec(B);
-dec(<<?TAG8(_), B/binary>>) -> dec(B);
-dec(<<?TAG0(_), B/binary>>) -> dec(B);
-dec(T) -> error(badarg, [T]).
+dec_int(0, <<I:1/unit:8, R/binary>>) -> {I, R};
+dec_int(1, <<I:2/unit:8, R/binary>>) -> {I, R};
+dec_int(2, <<I:4/unit:8, R/binary>>) -> {I, R};
+dec_int(3, <<I:8/unit:8, R/binary>>) -> {I, R}.
 
--compile({inline, dec_float16/1}).
+-compile({inline, [neg/1, dec_float/2, dec_float16/1, dec_bin/2]}).
+
+neg({I, R}) -> {?NEG(I), R}.
+
+dec_float(<<16#7FF0:2/unit:8, 0:6/unit:8, R/binary>>, 3) -> {positive_infinity, R};
+dec_float(<<16#7FF8:2/unit:8, 0:6/unit:8, R/binary>>, 3) -> {nan, R};
+dec_float(<<16#FFF0:2/unit:8, 0:6/unit:8, R/binary>>, 3) -> {negative_infinity, R};
+dec_float(<<F/float, R/binary>>, 3) -> {F, R};
+dec_float(<<16#7F80:2/unit:8, 0:2/unit:8, R/binary>>, 2) -> {positive_infinity, R};
+dec_float(<<16#7FC0:2/unit:8, 0:2/unit:8, R/binary>>, 2) -> {nan, R};
+dec_float(<<16#FF80:2/unit:8, 0:2/unit:8, R/binary>>, 2) -> {negative_infinity, R};
+dec_float(<<F:32/float, R/binary>>, 2) -> {F, R};
+dec_float(<<16#7C00:2/unit:8, R/binary>>, 1) -> {positive_infinity, R};
+dec_float(<<16#7E00:2/unit:8, R/binary>>, 1) -> {nan, R};
+dec_float(<<16#FC00:2/unit:8, R/binary>>, 1) -> {negative_infinity, R};
+dec_float(B, _) -> dec_float16(B).
 -ifdef(HAVE_float16).
-dec_float16(<<F:16/float>>) -> F.
+dec_float16(<<F:16/float, R/binary>>) -> {F, R}.
 -else.
-dec_float16(<<S:1, E:5, F:10>>) ->
-    <<T:32/float>> = <<S:1, (E + (127 - 15)):8, F:10, 0:13>>,
-    T.
+dec_float16(<<S:1, E:5, F:10, R/binary>>) ->
+    <<T:32/float>> = <<S:1, (E + 16#70):8, F:10, 0:13>>,
+    {T, R}.
 -endif.
 
-enc_integer(I) when I >= 0 -> enc_pos_integer(I);
-enc_integer(I) -> enc_neg_integer(I).
+dec_bin(B, S) ->
+    <<V:S/binary, R/binary>> = B,
+    {V, R}.
 
-enc_binary(B) ->
-    [case byte_size(B) of
-         S when S < 24 -> <<?BSTR0(S)>>;
-         S when S < 16#100 -> <<?BSTR1(S)>>;
-         S when S < 16#10000 -> <<?BSTR2(S)>>;
-         S when S < 16#100000000 -> <<?BSTR4(S)>>;
-         S -> <<?BSTR8(S)>>
-     end,
-     B].
+dec_big_int(B, S) ->
+    <<V:S/unit:8, R/binary>> = B,
+    {V, R}.
 
-enc_list(L) -> [<<?ARRAY(?INDEFINITE)>>|lists:foldr(fun(E, A) -> [enc(E)|A] end, [?BREAK], L)].
+dec_array(B, S) ->
+    {L, R} = dec_array_(B, S),
+    {list_to_tuple(L), R}.
+
+dec_array_(R, 0) -> {[], R};
+dec_array_(B, S) ->
+    {E, R} = dec(B),
+    {L, T} = dec_array_(R, S - 1),
+    {[E|L], T}.
+
+dec_map(B, S) ->
+    {L, R} = dec_map_(B, S),
+    {maps:from_list(L), R}.
+
+dec_map_(R, 0) -> {[], R};
+dec_map_(B, S) ->
+    {K, VT} = dec(B),
+    {V, T} = dec(VT),
+    {L, R} = dec_map_(T, S - 1),
+    {[{K, V}|L], R}.
+
+dec_map(B) ->
+    {L, R} = dec_map_(B),
+    {maps:from_list(L), R}.
+
+dec_map_(<<?BREAK, R/binary>>) -> {[], R};
+dec_map_(B) ->
+    {K, VT} = dec(B),
+    {V, T} = dec(VT),
+    {L, R} = dec_map_(T),
+    {[{K, V}|L], R}.
+
+dec(<<?PINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {I, B};
+dec(<<?PINT:3, 2#110:3, S:2, B/binary>>) -> dec_int(S, B);
+dec(<<?NINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {?NEG(I), B};
+dec(<<?NINT:3, 2#110:3, S:2, B/binary>>) -> neg(dec_int(S, B));
+dec(<<?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_array(B);
+dec(<<?ARRAY:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_array(B, S);
+dec(<<?ARRAY:3, 2#110:3, S:2, B/binary>>) when S =/= 3 ->
+    {I, R} = dec_int(S, B),
+    dec_array(R, I);
+dec(<<?MAP:3, ?INDEFINITE:5, B/binary>>) -> dec_map(B);
+dec(<<?MAP:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_map(B, S);
+dec(<<?MAP:3, 2#110:3, S:2, B/binary>>) ->
+    {I, R} = dec_int(S, B),
+    dec_map(R, I);
+dec(<<?TAG:3, ?BIG_PINT:5, 2:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_big_int(B, S);
+dec(<<?TAG:3, ?BIG_PINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
+    {I, R} = dec_int(S, B),
+    dec_big_int(R, I);
+dec(<<?TAG:3, ?BIG_NINT:5, 2:3, S:5, B/binary>>) when S < ?SIZE1 -> neg(dec_big_int(B, S));
+dec(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
+    {I, R} = dec_int(S, B),
+    neg(dec_big_int(R, I));
+dec(<<?TAG:3, S:5, B/binary>>) when S < ?SIZE1 -> dec(B);
+dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1:5, S, B/binary>>) -> dec_eterm(B, S);
+dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_eterm(B, S);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S);
+dec(<<?TAG:3, 2#110:3, S:2, B/binary>>) ->
+    I = 1 bsl S,
+    <<_:I/binary, R/binary>> = B,
+    dec(R);
+dec(<<?SIMPLE:3, 2#101:3, I:2, R/binary>>) -> {element(I + 1, {false, true, null, undefined}), R};
+dec(<<?FLOAT:3, 2#110:3, S:2, B/binary>>) when S =/= 0 -> dec_float(B, S);
+dec(<<2#01:2, _:1, ?INDEFINITE:5, B/binary>>) ->
+    {L, R} = dec_array(B),
+    {list_to_binary(L), R};
+dec(<<2#01:2, _:1, S:5, B/binary>>) when S < ?SIZE1 -> dec_bin(B, S);
+dec(<<2#01:2, _:1, 2#110:3, S:2, B/binary>>) ->
+    {I, R} = dec_int(S, B),
+    dec_bin(R, I);
+dec(T) -> error(badarg, [T]).
+
+enc_integer(I) when I >= 1 bsl 64 -> [<<?TAG0(?BIG_PINT)>>, enc_binary(binary:encode_unsigned(I))];
+enc_integer(I) when I >= 0 -> enc_int(?PINT, I);
+enc_integer(I) ->
+    case ?NEG(I) of
+        N when N >= 1 bsl 64 -> [<<?TAG0(?BIG_NINT)>>, enc_binary(binary:encode_unsigned(N))];
+        N -> enc_int(?NINT, N)
+    end.
+
+enc_int(T, I) when I < ?SIZE1 -> <<T:3, I:5>>;
+enc_int(T, I) when I < 1 bsl 8 -> <<T:3, ?SIZE1:5, I:1/unit:8>>;
+enc_int(T, I) when I < 1 bsl 16 -> <<T:3, ?SIZE2:5, I:2/unit:8>>;
+enc_int(T, I) when I < 1 bsl 32 -> <<T:3, ?SIZE4:5, I:4/unit:8>>;
+enc_int(T, I) -> <<T:3, ?SIZE8:5, I:8/unit:8>>.
+
+enc_binary(B) -> [enc_int(?BSTR, byte_size(B))|B].
+
+enc_list(L) -> [<<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)].
+
+enc_list_([]) -> [?BREAK];
+enc_list_([H|T]) -> [enc(H)|enc_list_(T)].
 
 enc_tuple(T) ->
     S = tuple_size(T),
-    [if
-         S < 24 -> <<?ARRAY0(S)>>;
-         S < 16#100 -> <<?ARRAY1(S)>>;
-         S < 16#10000 -> <<?ARRAY2(S)>>;
-         true -> <<?ARRAY4(S)>>
-     end|enc_tuple(T, S, [])].
+    [enc_int(?ARRAY, S)|enc_array(T, S)].
 
-enc_tuple(_, 0, A) -> A;
-enc_tuple(T, S, A) -> enc_tuple(T, S - 1, [enc(element(S, T))|A]).
+enc_array(T, S) -> enc_array(T, S, []).
 
-enc_map(M) ->
-    [case map_size(M) of
-         S when S < 24 -> <<?MAP0(S)>>;
-         S when S < 16#100 -> <<?MAP1(S)>>;
-         S when S < 16#10000 -> <<?MAP2(S)>>;
-         S when S < 16#100000000 -> <<?MAP4(S)>>;
-         S -> <<?MAP8(S)>>
-     end|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
+enc_array(_, 0, L) -> L;
+enc_array(T, S, L) -> enc_array(T, S - 1, [enc(element(S, T))|L]).
+
+enc_map(M) -> [enc_int(?MAP, map_size(M))|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
 
 -ifdef(HAVE_float16).
 enc_float(F) ->
@@ -222,93 +290,88 @@ enc_float(F) ->
 
 enc_atom(A) ->
     B = atom_to_binary(A, utf8),
-    [<<?TAG_ATOM>>,
-     case byte_size(B) of
-         S when S < 24 -> <<?TSTR0(S)>>;
-         S -> <<?TSTR1(S)>>
-     end,
-     B].
+    [<<?TAG1(119)>>, enc_int(?TSTR, byte_size(B))|B].
 
-enc_pos_integer(I) when I < 24 -> <<?PINT0(I)>>;
-enc_pos_integer(I) when I < 16#100 -> <<?PINT1(I)>>;
-enc_pos_integer(I) when I < 16#10000 -> <<?PINT2(I)>>;
-enc_pos_integer(I) when I < 16#100000000 -> <<?PINT4(I)>>;
-enc_pos_integer(I) when I < 16#10000000000000000 -> <<?PINT8(I)>>;
-enc_pos_integer(I) -> [<<?TAG_BIG_PINT>>, enc_binary(binary:encode_unsigned(I))].
+enc_eterm(A) ->
+    B = term_to_binary(A),
+    [<<?TAG1(?ETERM)>>, enc_int(?BSTR, byte_size(B))|B].
 
-enc_neg_integer(I) when I >= -24 -> <<?NINT0(?NEG(I))>>;
-enc_neg_integer(I) when I >= -16#100 -> <<?NINT1(?NEG(I))>>;
-enc_neg_integer(I) when I >= -16#10000 -> <<?NINT2(?NEG(I))>>;
-enc_neg_integer(I) when I >= -16#100000000 -> <<?NINT4(?NEG(I))>>;
-enc_neg_integer(I) when I >= -16#10000000000000000 -> <<?NINT8(?NEG(I))>>;
-enc_neg_integer(I) -> [<<?TAG_BIG_NINT>>, enc_binary(binary:encode_unsigned(?NEG(I)))].
+dec_atom(B, E, S) ->
+    <<V:S/binary, R/binary>> = B,
+    {binary_to_atom(V, E), R}.
 
-dec_pos_integer(B, S) -> bs(B, S).
-
-dec_neg_integer(B, S) ->
-    {I, R} = bs(B, S),
-    {?NEG(I), R}.
-
-dec_big_pos_integer(B, S) ->
-    {I, R} = dec_binary(B, S),
-    {binary:decode_unsigned(I), R}.
-
-dec_big_neg_integer(B, S) ->
-    {I, R} = dec_big_pos_integer(B, S),
-    {?NEG(I), R}.
-
-dec_binary(B, S) ->
-    {N, R} = bs(B, S),
-    split_binary(R, N).
-
-dec_atom(B, S) ->
-    {A, R} = split_binary(B, S),
-    {binary_to_atom(A), R}.
-
-dec_binaries(B) ->
-    {L, R} = dec_array(B),
-    {list_to_binary(L), R}.
+dec_eterm(B, S) ->
+    <<V:S/binary, R/binary>> = B,
+    {binary_to_term(V), R}.
 
 dec_array(<<?BREAK, R/binary>>) -> {[], R};
 dec_array(B) ->
-    {T, R} = dec(B),
-    {A, E} = dec_array(R),
-    {[T|A], E}.
+    {V, T} = dec(B),
+    {L, R} = dec_array(T),
+    {[V|L], R}.
 
-dec_array(B, S) ->
-    {N, R} = bs(B, S),
-    decode_array(N, R).
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("otpbp/include/otpbp_pt.hrl").
 
-decode_array(0, B) -> {[], B};
-decode_array(S, B) ->
-    {T, R} = dec(B),
-    {A, E} = decode_array(S - 1, R),
-    {[T|A], E}.
+encode_test_() ->
+    lists:map(fun({V, E}) -> ?_assertEqual(encode(V), binary:decode_hex(E)) end,
+              [{0, <<"00">>},
+               {1, <<"01">>}, {23, <<"17">>}, {24, <<"1818">>}, {16#FF, <<"18FF">>},
+               {16#100, <<"190100">>}, {16#FFFF, <<"19FFFF">>},
+               {16#10000, <<"1A00010000">>}, {16#FFFFFFFF, <<"1AFFFFFFFF">>},
+               {16#100000000, <<"1B0000000100000000">>}, {16#FFFFFFFFFFFFFFFF, <<"1BFFFFFFFFFFFFFFFF">>},
+               {-1, <<"20">>}, {-24, <<"37">>}, {-25, <<"3818">>}, {-16#100, <<"38FF">>},
+               {-16#101, <<"390100">>}, {-16#10000, <<"39FFFF">>},
+               {-16#10001, <<"3A00010000">>}, {-16#100000000, <<"3AFFFFFFFF">>},
+               {-16#100000001, <<"3B0000000100000000">>}, {-16#10000000000000000, <<"3BFFFFFFFFFFFFFFFF">>},
+               {<<"">>, <<"40">>}, {<<1, 2, 3, 4>>, <<"4401020304">>},
+               {<<"a">>, <<"4161">>}, {<<"IETF">>, <<"4449455446">>}, {<<"\"\\">>, <<"42225c">>},
+               {{1, 2, 3, 4}, <<"8401020304">>},
+               {list_to_tuple(lists:seq(1, 25)), <<"98190102030405060708090a0b0c0d0e0f101112131415161718181819">>},
+               {false, <<"F4">>}, {true, <<"F5">>}, {null, <<"F6">>}, {undefined, <<"F7">>}]).
 
-dec_tuple(B, S) ->
-    {L, R} = dec_array(B, S),
-    {list_to_tuple(L), R}.
+decode_test_() ->
+    lists:map(fun({V, E}) -> ?_assertEqual(V, decode(binary:decode_hex(E))) end,
+              [{0, <<"00">>},
+               {1, <<"01">>}, {23, <<"17">>}, {24, <<"1818">>}, {16#FF, <<"18FF">>},
+               {16#100, <<"190100">>}, {16#FFFF, <<"19FFFF">>},
+               {16#10000, <<"1A00010000">>}, {16#FFFFFFFF, <<"1AFFFFFFFF">>},
+               {16#100000000, <<"1B0000000100000000">>}, {16#FFFFFFFFFFFFFFFF, <<"1BFFFFFFFFFFFFFFFF">>},
+               {-1, <<"20">>}, {-24, <<"37">>}, {-25, <<"3818">>}, {-16#100, <<"38FF">>},
+               {-16#101, <<"390100">>}, {-16#10000, <<"39FFFF">>},
+               {-16#10001, <<"3A00010000">>}, {-16#100000000, <<"3AFFFFFFFF">>},
+               {-16#100000001, <<"3B0000000100000000">>}, {-16#10000000000000000, <<"3BFFFFFFFFFFFFFFFF">>},
+               {positive_infinity, <<"F97C00">>}, {nan, <<"F97E00">>}, {negative_infinity, <<"F9FC00">>},
+               {positive_infinity, <<"FA7F800000">>}, {nan, <<"FA7FC00000">>}, {negative_infinity, <<"FAFF800000">>},
+               {positive_infinity, <<"FB7FF0000000000000">>},
+               {nan, <<"FB7FF8000000000000">>},
+               {negative_infinity, <<"FBFFF0000000000000">>},
+               {<<"">>, <<"40">>}, {<<1, 2, 3, 4>>, <<"4401020304">>},
+               {<<"">>, <<"60">>}, {<<"a">>, <<"6161">>}, {<<"IETF">>, <<"6449455446">>}, {<<"\"\\">>, <<"62225c">>},
+               {<<"2013-03-21T20:04:00Z">>, <<"C074323031332D30332D32315432303A30343A30305A">>},
+               {1363896240, <<"C11A514B67B0">>},
+               {1363896240.5, <<"C1FB41D452D9EC200000">>},
+               {<<1, 2, 3, 4>>, <<"D74401020304">>},
+               {<<"dIETF">>, <<"D818456449455446">>},
+               {<<"http://www.example.com">>, <<"D82076687474703A2F2F7777772E6578616D706C652E636F6D">>},
+               {{1, 2, 3, 4}, <<"8401020304">>},
+               {list_to_tuple(lists:seq(1, 25)), <<"98190102030405060708090a0b0c0d0e0f101112131415161718181819">>},
+               {false, <<"F4">>}, {true, <<"F5">>}, {null, <<"F6">>}, {undefined, <<"F7">>}]).
 
-dec_map(B, S) ->
-    {N, R} = bs(B, S),
-    decode_map(N, R).
+bench_test() ->
+    N = 10000,
+    lists:foreach(fun({Name, Hex}) ->
+                      Bin = binary:decode_hex(Hex),
+                      {Usec, ok} = timer:tc(fun() -> repeat_decode_n(N, Bin) end),
+                      io:fwrite("~s: ~p #/s ~.4f us/# ~.2f MB/s~n",
+                                [Name, N * 1000000 div Usec, Usec / N, byte_size(Bin) * N / Usec])
+                  end,
+                  [{"nd list", <<"9f0102030405060708090a0b0c0d0e0f101112131415161718181819ff">>},
+                   {"fixed list", <<"98190102030405060708090a0b0c0d0e0f101112131415161718181819">>},
+                   {"fixed map", <<"a56161614161626142616361436164614461656145">>},
+                   {"nested", <<"bf61610161629f0203ffff">>}]).
 
-decode_map(0, B) -> {#{}, B};
-decode_map(S, B) ->
-    {K, R1} = dec(B),
-    {V, R2} = dec(R1),
-    {M, R} = decode_map(S - 1, R2),
-    {M#{K => V}, R}.
-
-dec_map(<<?BREAK, R/binary>>) -> {#{}, R};
-dec_map(B) ->
-    {K, R1} = dec(B),
-    {V, R2} = dec(R1),
-    {M, R} = dec_map(R2),
-    {M#{K => V}, R}.
-
-bs(B, S) when S < 24 -> {S, B};
-bs(B, S) when S =< 27 ->
-    N = 1 bsl (S band 2#11),
-    <<I:N/unit:8, R/binary>> = B,
-    {I, R}.
+repeat_decode_n(0, _) -> ok;
+repeat_decode_n(N, Bin) -> decode(Bin), repeat_decode_n(N - 1, Bin).
+-endif.
