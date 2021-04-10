@@ -165,7 +165,12 @@ dec_big_int(B, S) ->
 
 dec_array(B, S) ->
     {L, R} = dec_array_(B, S),
-    {list_to_tuple(L), R}.
+    {try
+         list_to_tuple(L)
+     catch
+         _:_ -> L
+     end,
+     R}.
 
 dec_array_(R, 0) -> {[], R};
 dec_array_(B, S) ->
@@ -201,7 +206,7 @@ dec(<<?NINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {?NEG(I), B};
 dec(<<?NINT:3, 2#110:3, S:2, B/binary>>) -> neg(dec_int(S, B));
 dec(<<?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_array(B);
 dec(<<?ARRAY:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_array(B, S);
-dec(<<?ARRAY:3, 2#110:3, S:2, B/binary>>) when S =/= 3 ->
+dec(<<?ARRAY:3, 2#110:3, S:2, B/binary>>) ->
     {I, R} = dec_int(S, B),
     dec_array(R, I);
 dec(<<?MAP:3, ?INDEFINITE:5, B/binary>>) -> dec_map(B);
