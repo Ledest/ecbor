@@ -19,5 +19,11 @@ jobs:
       image: erlang:${{ matrix.version }}
     steps:
     - uses: actions/checkout@v2
+    - name: deps
+      run: ${{ matrix.rebar }} get-deps
     - name: Compile
-      run: ${{ matrix.rebar }} get-deps && ${{ matrix.rebar }} compile
+      run: ${{ matrix.rebar }} compile
+    - name: XRef
+      run: ${{ matrix.rebar }} xref
+    - name: Tests
+      run: ${{ matrix.rebar }} eunit
