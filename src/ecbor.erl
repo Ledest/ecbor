@@ -99,7 +99,6 @@ encode(T) -> iolist_to_binary(enc(T)).
 
 encode_seq(L) -> list_to_binary(enc_seq(L)).
 
-
 decode(B) ->
     {T, _} = dec(B),
     T.
