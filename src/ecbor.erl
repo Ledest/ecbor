@@ -1,7 +1,7 @@
 -module(ecbor).
 
--export([encode/1, decode/1, encode_seq/1, decode_seq/1]).
--export([enc/1, dec/1, enc_seq/1, dec_seq/1]).
+-export([encode/1, decode/1, decode/2, encode_seq/1, decode_seq/1]).
+-export([enc/1, dec/1, dec/2, enc_seq/1, dec_seq/1]).
 
 -define(SIZE1, 24).
 -define(SIZE2, 25).
@@ -95,12 +95,17 @@
 -define(FLOAT4, ?FLOAT(26)).
 -define(FLOAT8, ?FLOAT(27)).
 
+-spec encode(term()) -> binary().
 encode(T) -> iolist_to_binary(enc(T)).
 
 encode_seq(L) -> list_to_binary(enc_seq(L)).
 
 decode(B) ->
-    {T, _} = dec(B),
+    decode(B, []).
+
+-spec decode(binary(), [safe]) -> any().
+decode(B, Opts) ->
+    {T, _} = dec(B, Opts),
     T.
 
 decode_seq(B) -> dec_seq(B).
@@ -120,10 +125,13 @@ enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
 enc(T) -> enc_eterm(T).
 
-dec_seq(<<>>) -> [];
-dec_seq(B) ->
-    {T, R} = dec(B),
-    [T|dec_seq(R)].
+dec_seq(Bin) ->
+    dec_seq(Bin, []).
+
+dec_seq(<<>>, _Opts) -> [];
+dec_seq(B, Opts) ->
+    {T, R} = dec(B, Opts),
+    [T|dec_seq(R, Opts)].
 
 dec_int(0, <<I:1/unit:8, R/binary>>) -> {I, R};
 dec_int(1, <<I:2/unit:8, R/binary>>) -> {I, R};
@@ -162,8 +170,8 @@ dec_big_int(B, S) ->
     <<V:S/unit:8, R/binary>> = B,
     {V, R}.
 
-dec_array(B, S) ->
-    {L, R} = dec_array_(B, S),
+dec_array(B, S, Opts) ->
+    {L, R} = dec_array_(B, S, Opts),
     {try
          list_to_tuple(L)
      catch
@@ -171,77 +179,80 @@ dec_array(B, S) ->
      end,
      R}.
 
-dec_array_(R, 0) -> {[], R};
-dec_array_(B, S) ->
-    {E, R} = dec(B),
-    {L, T} = dec_array_(R, S - 1),
+dec_array_(R, 0, _Opts) -> {[], R};
+dec_array_(B, S, Opts) ->
+    {E, R} = dec(B, Opts),
+    {L, T} = dec_array_(R, S - 1, Opts),
     {[E|L], T}.
 
-dec_map(B, S) ->
-    {L, R} = dec_map_(B, S),
+dec_map(B, S, Opts) ->
+    {L, R} = dec_map_(B, S, Opts),
     {maps:from_list(L), R}.
 
-dec_map_(R, 0) -> {[], R};
-dec_map_(B, S) ->
-    {K, VT} = dec(B),
-    {V, T} = dec(VT),
-    {L, R} = dec_map_(T, S - 1),
+dec_map_(R, 0, _Opts) -> {[], R};
+dec_map_(B, S, Opts) ->
+    {K, VT} = dec(B, Opts),
+    {V, T} = dec(VT, Opts),
+    {L, R} = dec_map_(T, S - 1, Opts),
     {[{K, V}|L], R}.
 
-dec_map(B) ->
-    {L, R} = dec_map_(B),
+dec_map(B, Opts) ->
+    {L, R} = dec_map_(B, Opts),
     {maps:from_list(L), R}.
 
-dec_map_(<<?BREAK, R/binary>>) -> {[], R};
-dec_map_(B) ->
-    {K, VT} = dec(B),
-    {V, T} = dec(VT),
-    {L, R} = dec_map_(T),
+dec_map_(<<?BREAK, R/binary>>, _Opts) -> {[], R};
+dec_map_(B, Opts) ->
+    {K, VT} = dec(B, Opts),
+    {V, T} = dec(VT, Opts),
+    {L, R} = dec_map_(T, Opts),
     {[{K, V}|L], R}.
 
-dec(<<?PINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {I, B};
-dec(<<?PINT:3, 2#110:3, S:2, B/binary>>) -> dec_int(S, B);
-dec(<<?NINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {?NEG(I), B};
-dec(<<?NINT:3, 2#110:3, S:2, B/binary>>) -> neg(dec_int(S, B));
-dec(<<?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_array(B);
-dec(<<?ARRAY:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_array(B, S);
-dec(<<?ARRAY:3, 2#110:3, S:2, B/binary>>) ->
+dec(Bin) ->
+    dec(Bin, []).
+
+dec(<<?PINT:3, I:5, B/binary>>, _Opts) when I < ?SIZE1 -> {I, B};
+dec(<<?PINT:3, 2#110:3, S:2, B/binary>>, _Opts) -> dec_int(S, B);
+dec(<<?NINT:3, I:5, B/binary>>, _Opts) when I < ?SIZE1 -> {?NEG(I), B};
+dec(<<?NINT:3, 2#110:3, S:2, B/binary>>, _Opts) -> neg(dec_int(S, B));
+dec(<<?ARRAY:3, ?INDEFINITE:5, B/binary>>, Opts) -> dec_array(B, Opts);
+dec(<<?ARRAY:3, S:5, B/binary>>, Opts) when S < ?SIZE1 -> dec_array(B, S, Opts);
+dec(<<?ARRAY:3, 2#110:3, S:2, B/binary>>, Opts) ->
     {I, R} = dec_int(S, B),
-    dec_array(R, I);
-dec(<<?MAP:3, ?INDEFINITE:5, B/binary>>) -> dec_map(B);
-dec(<<?MAP:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_map(B, S);
-dec(<<?MAP:3, 2#110:3, S:2, B/binary>>) ->
+    dec_array(R, I, Opts);
+dec(<<?MAP:3, ?INDEFINITE:5, B/binary>>, Opts) -> dec_map(B, Opts);
+dec(<<?MAP:3, S:5, B/binary>>, Opts) when S < ?SIZE1 -> dec_map(B, S, Opts);
+dec(<<?MAP:3, 2#110:3, S:2, B/binary>>, Opts) ->
     {I, R} = dec_int(S, B),
-    dec_map(R, I);
-dec(<<?TAG:3, ?BIG_PINT:5, 2:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_big_int(B, S);
-dec(<<?TAG:3, ?BIG_PINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
+    dec_map(R, I, Opts);
+dec(<<?TAG:3, ?BIG_PINT:5, 2:3, S:5, B/binary>>, _Opts) when S < ?SIZE1 -> dec_big_int(B, S);
+dec(<<?TAG:3, ?BIG_PINT:5, 2:3, 2#110:3, S:2, B/binary>>, _Opts) ->
     {I, R} = dec_int(S, B),
     dec_big_int(R, I);
-dec(<<?TAG:3, ?BIG_NINT:5, 2:3, S:5, B/binary>>) when S < ?SIZE1 -> neg(dec_big_int(B, S));
-dec(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
+dec(<<?TAG:3, ?BIG_NINT:5, 2:3, S:5, B/binary>>, _Opts) when S < ?SIZE1 -> neg(dec_big_int(B, S));
+dec(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>, _Opts) ->
     {I, R} = dec_int(S, B),
     neg(dec_big_int(R, I));
-dec(<<?TAG:3, S:5, B/binary>>) when S < ?SIZE1 -> dec(B);
-dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1:5, S, B/binary>>) -> dec_eterm(B, S);
-dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_eterm(B, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S);
-dec(<<?TAG:3, 2#110:3, S:2, B/binary>>) ->
+dec(<<?TAG:3, S:5, B/binary>>, Opts) when S < ?SIZE1 -> dec(B, Opts);
+dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1:5, S, B/binary>>, Opts) -> dec_eterm(B, S, Opts);
+dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>, Opts) when S < ?SIZE1 -> dec_eterm(B, S, Opts);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>, Opts) when ?IS_UATOM(T) -> dec_atom(B, utf8, S, Opts);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, Opts) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S, Opts);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>, Opts) when ?IS_ATOM(T) -> dec_atom(B, latin1, S, Opts);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, Opts) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S, Opts);
+dec(<<?TAG:3, 2#110:3, S:2, B/binary>>, Opts) ->
     I = 1 bsl S,
     <<_:I/binary, R/binary>> = B,
-    dec(R);
-dec(<<?SIMPLE:3, 2#101:3, I:2, R/binary>>) -> {element(I + 1, {false, true, null, undefined}), R};
-dec(<<?FLOAT:3, 2#110:3, S:2, B/binary>>) when S =/= 0 -> dec_float(B, S);
-dec(<<2#01:2, _:1, ?INDEFINITE:5, B/binary>>) ->
-    {L, R} = dec_array(B),
+    dec(R, Opts);
+dec(<<?SIMPLE:3, 2#101:3, I:2, R/binary>>, _Opts) -> {element(I + 1, {false, true, null, undefined}), R};
+dec(<<?FLOAT:3, 2#110:3, S:2, B/binary>>, _Opts) when S =/= 0 -> dec_float(B, S);
+dec(<<2#01:2, _:1, ?INDEFINITE:5, B/binary>>, Opts) ->
+    {L, R} = dec_array(B, Opts),
     {list_to_binary(L), R};
-dec(<<2#01:2, _:1, S:5, B/binary>>) when S < ?SIZE1 -> dec_bin(B, S);
-dec(<<2#01:2, _:1, 2#110:3, S:2, B/binary>>) ->
+dec(<<2#01:2, _:1, S:5, B/binary>>, _Opts) when S < ?SIZE1 -> dec_bin(B, S);
+dec(<<2#01:2, _:1, 2#110:3, S:2, B/binary>>, _Opts) ->
     {I, R} = dec_int(S, B),
     dec_bin(R, I);
-dec(T) -> error(badarg, [T]).
+dec(T, _Opts) -> error(badarg, [T]).
 
 enc_integer(I) when I >= 1 bsl 64 -> [<<?TAG0(?BIG_PINT)>>, enc_binary(binary:encode_unsigned(I))];
 enc_integer(I) when I >= 0 -> enc_int(?PINT, I);
@@ -300,18 +311,26 @@ enc_eterm(A) ->
     B = term_to_binary(A),
     [<<?TAG1(?ETERM)>>, enc_int(?BSTR, byte_size(B))|B].
 
-dec_atom(B, E, S) ->
+dec_atom(B, E, S, Opts) ->
     <<V:S/binary, R/binary>> = B,
-    {binary_to_atom(V, E), R}.
+    Atom = case proplists:is_defined(safe, Opts) of
+               true ->  binary_to_existing_atom(V, E);
+               false -> binary_to_atom(V, E)
+           end,
+    {Atom, R}.
 
-dec_eterm(B, S) ->
+dec_eterm(B, S, Opts) ->
     <<V:S/binary, R/binary>> = B,
-    {binary_to_term(V), R}.
+    Term = case proplists:is_defined(safe, Opts) of
+               true -> binary_to_term(V, [safe]);
+               false -> binary_to_term(V)
+           end,
+    {Term, R}.
 
-dec_array(<<?BREAK, R/binary>>) -> {[], R};
-dec_array(B) ->
-    {V, T} = dec(B),
-    {L, R} = dec_array(T),
+dec_array(<<?BREAK, R/binary>>, _Opts) -> {[], R};
+dec_array(B, Opts) ->
+    {V, T} = dec(B, Opts),
+    {L, R} = dec_array(T, Opts),
     {[V|L], R}.
 
 -ifdef(TEST).
