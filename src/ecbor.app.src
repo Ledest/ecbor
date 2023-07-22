@@ -1,6 +1,8 @@
 {application, ecbor, [{description, "Erlang CBOR library"},
                       {vsn, "0.3.2"},
-                      {modules, []},
                       {registered, []},
                       {applications, [kernel, stdlib]},
-                      {env, []}]}.
+                      {modules, []},
+                      {env, []},
+                      {links, [{"GitHub", "https://github.com/Ledest/ecbor"}]},
+                      {licenses, ["GPL-3.0+"]}]}.
