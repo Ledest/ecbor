@@ -1,8 +1,19 @@
-try <<0:16/float>> of
-    _ -> lists:keystore(erl_opts, 1, CONFIG, {erl_opts, case lists:keyfind(erl_opts, 1, CONFIG) of
-                                                            {_, O} -> [{d, 'HAVE_float16'}|O];
-                                                            _ -> [{d, 'HAVE_float16'}]
-                                                        end})
-catch
-    error:badarg -> CONFIG
+CONFIG1= try <<0:16/float>> of
+             _ -> lists:keystore(erl_opts, 1, CONFIG,
+                                 {erl_opts, case lists:keyfind(erl_opts, 1, CONFIG) of
+                                                {_, O} -> [{d, 'HAVE_float16'}|O];
+                                                _ -> [{d, 'HAVE_float16'}]
+                                            end})
+         catch
+             error:badarg -> CONFIG
+         end,
+case erlang:function_exported(rebar3, main, 1) of
+    true -> CONFIG1;
+    false ->
+        case lists:keyfind(deps, 1, CONFIG1) of
+            {_, Deps} ->
+                lists:keystore(deps, 1, CONFIG1,
+                               {deps, [{otpbp, {git, "https://github.com/Ledest/otpbp.git", {branch, "4.x"}}}]});
+            _ -> CONFIG1
+        end
 end.
