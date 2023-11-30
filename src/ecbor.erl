@@ -285,10 +285,9 @@ enc_binary(B) -> [enc_int(?BSTR, byte_size(B))|B].
 enc_list(L) when length(L) >= 0 -> [<<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)];
 enc_list(L) -> [<<?TAG1(?LIST)>>, <<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)].
 
-enc_list_([]) -> [?BREAK];
 enc_list_([H|T]) -> [enc(H)|enc_list_(T)];
 enc_list_([]) -> [?BREAK];
-enc_list_(T) -> [enc(T),?BREAK].
+enc_list_(T) -> [enc(T), ?BREAK].
 
 enc_tuple(T) ->
     S = tuple_size(T),
