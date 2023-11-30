@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        version: [26, 25, 24, 23, 22, 21, 20, 19, 18]
+        version: [26, 25, 24, 23, 22, 21, 20, 19]
         rebar: [rebar, rebar3]
     container:
       image: erlang:${{ matrix.version }}
