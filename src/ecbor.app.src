@@ -1,5 +1,5 @@
 {application, ecbor, [{description, "Erlang CBOR library"},
-                      {vsn, "0.3.8"},
+                      {vsn, "0.4.0"},
                       {registered, []},
                       {applications, [kernel, stdlib]},
                       {modules, []},
