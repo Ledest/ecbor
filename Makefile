@@ -42,7 +42,7 @@ $(EUNIT_MODULES): $(SOURCES) $(TEST_SOURCES) .eunit/
 	mkdir .eunit
 
 eunit: $(EUNIT_MODULES)
-	$(ERL) -noshell -eval 'eunit:test({dir, ".eunit"}, [$(EUNIT_OPTS)]).' -s init stop
+	cd .eunit && $(ERL) -noshell -eval 'eunit:test($(NAME), [$(EUNIT_OPTS)]).' -s init stop
 
 clean:
 	rm -rf ebin doc .eunit
