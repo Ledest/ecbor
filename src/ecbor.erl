@@ -30,6 +30,7 @@
 -define(SECONDS, 1).
 -define(BIG_PINT, 2).
 -define(BIG_NINT, 3).
+-define(LIST, 108).
 -define(ETERM, 131).
 -define(IS_ATOM(T), (T =:= 100 orelse T =:= 115)).
 -define(IS_UATOM(T), (T =:= 118 orelse T =:= 119)).
@@ -164,6 +165,7 @@ dec(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
     {I, R} = dec_int(S, B),
     neg(dec_big_int(R, I));
 dec(<<?TAG:3, S:5, B/binary>>) when S < ?SIZE1 -> dec(B);
+dec(<<?TAG:3, 2#110:3, 0:2, ?LIST, ?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_improper_list(B);
 dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1:5, S, B/binary>>) -> dec_eterm(B, S);
 dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_eterm(B, S);
 dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
@@ -280,10 +282,13 @@ enc_int(T, I) -> <<T:3, ?SIZE8:5, I:8/unit:8>>.
 
 enc_binary(B) -> [enc_int(?BSTR, byte_size(B))|B].
 
-enc_list(L) -> [<<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)].
+enc_list(L) when length(L) >= 0 -> [<<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)];
+enc_list(L) -> [<<?TAG1(?LIST)>>, <<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)].
 
 enc_list_([]) -> [?BREAK];
-enc_list_([H|T]) -> [enc(H)|enc_list_(T)].
+enc_list_([H|T]) -> [enc(H)|enc_list_(T)];
+enc_list_([]) -> [?BREAK];
+enc_list_(T) -> [enc(T),?BREAK].
 
 enc_tuple(T) ->
     S = tuple_size(T),
@@ -334,6 +339,14 @@ dec_array(B) ->
     {V, T} = dec(B),
     {L, R} = dec_array(T),
     {[V|L], R}.
+
+dec_improper_list(B) ->
+    case dec(B) of
+        {V, <<?BREAK, R/binary>>} -> {V, R};
+        {V, T} ->
+            {L, R} = dec_improper_list(T),
+            {[V|L], R}
+    end.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
