@@ -211,10 +211,10 @@ dec_(<<?TAG:3, S:5, B/binary>>, O) when S < ?SIZE1 -> dec_(B, O);
 dec_(<<?TAG:3, 2#110:3, 0:2, ?LIST, ?ARRAY:3, ?INDEFINITE:5, B/binary>>, O) -> dec_improper_list(B, O);
 dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1(S), B/binary>>, _) -> dec_eterm(B, S);
 dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>, _) when S < ?SIZE1 -> dec_eterm(B, S);
-dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, _) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
-dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, _) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S);
-dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, _) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
-dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, _) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, O) when ?IS_UATOM(T) -> dec_atom(B, O, utf8, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, O) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, O, utf8, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, O) when ?IS_ATOM(T) -> dec_atom(B, O, latin1, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, O) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, O, latin1, S);
 dec_(<<?TAG:3, 2#110:3, S:2, B/binary>>, O) ->
     I = 1 bsl S,
     <<_:I/binary, R/binary>> = B,
@@ -382,9 +382,18 @@ enc_eterm(A) ->
     B = term_to_binary(A),
     [<<?TAG1(?ETERM)>>, enc_int(?BSTR, byte_size(B))|B].
 
-dec_atom(B, E, S) ->
+dec_atom(B, O, E, S) ->
     <<V:S/binary, R/binary>> = B,
-    {binary_to_atom(V, E), R}.
+    {case O of
+         #opt{safe = true} ->
+                 try
+                     binary_to_existing_atom(V, E)
+                 catch
+                     _:_ -> V
+                 end;
+         _ -> binary_to_atom(V, E)
+     end,
+     R}.
 
 dec_eterm(B, S) ->
     <<V:S/binary, R/binary>> = B,
