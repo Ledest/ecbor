@@ -286,12 +286,17 @@ enc_int(T, I) -> <<T:3, ?SIZE8:5, I:8/unit:8>>.
 
 enc_binary(B) -> [enc_int(?BSTR, byte_size(B))|B].
 
-enc_list(L) when length(L) >= 0 -> [<<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)];
-enc_list(L) -> [<<?TAG1(?LIST)>>, <<?ARRAY:3, ?INDEFINITE:5>>|enc_list_(L)].
+enc_list(L) ->
+    case enc_list_(L) of
+        {true, R} -> [<<?ARRAY:3, ?INDEFINITE:5>>|R];
+        {_false, R} -> [<<?TAG1(?LIST)>>, <<?ARRAY:3, ?INDEFINITE:5>>|R]
+    end.
 
-enc_list_([H|T]) -> [enc(H)|enc_list_(T)];
-enc_list_([]) -> [?BREAK];
-enc_list_(T) -> [enc(T), ?BREAK].
+enc_list_([H|T]) ->
+    {P, L} = enc_list_(T),
+    {P, [enc(H)|L]};
+enc_list_([]) -> {true, [?BREAK]};
+enc_list_(T) -> {false, [enc(T), ?BREAK]}.
 
 -compile({inline, enc_tuple/1}).
 enc_tuple(T) ->
