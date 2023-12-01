@@ -24,6 +24,10 @@
 -define(SIZE4, 26).
 -define(SIZE8, 27).
 
+-define(SIZE1(S), ?SIZE1:5, S:1/unit:8).
+-define(SIZE2(S), ?SIZE2:5, S:2/unit:8).
+-define(SIZE4(S), ?SIZE4:5, S:4/unit:8).
+
 -define(SIZE(S), (1 bsl (S band 2#11))).
 
 -define(DATETIME, 0).
@@ -166,11 +170,11 @@ dec(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
     neg(dec_big_int(R, I));
 dec(<<?TAG:3, S:5, B/binary>>) when S < ?SIZE1 -> dec(B);
 dec(<<?TAG:3, 2#110:3, 0:2, ?LIST, ?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_improper_list(B);
-dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1:5, S, B/binary>>) -> dec_eterm(B, S);
+dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1(S), B/binary>>) -> dec_eterm(B, S);
 dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_eterm(B, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
 dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1:5, S, B/binary>>) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
+dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
 dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S);
 dec(<<?TAG:3, 2#110:3, S:2, B/binary>>) ->
     I = 1 bsl S,
@@ -275,9 +279,9 @@ dec_map_(B) ->
     {[{K, V}|L], R}.
 
 enc_int(T, I) when I < ?SIZE1 -> <<T:3, I:5>>;
-enc_int(T, I) when I < 1 bsl 8 -> <<T:3, ?SIZE1:5, I:1/unit:8>>;
-enc_int(T, I) when I < 1 bsl 16 -> <<T:3, ?SIZE2:5, I:2/unit:8>>;
-enc_int(T, I) when I < 1 bsl 32 -> <<T:3, ?SIZE4:5, I:4/unit:8>>;
+enc_int(T, I) when I < 1 bsl 8 -> <<T:3, ?SIZE1(I)>>;
+enc_int(T, I) when I < 1 bsl 16 -> <<T:3, ?SIZE2(I)>>;
+enc_int(T, I) when I < 1 bsl 32 -> <<T:3, ?SIZE4(I)>>;
 enc_int(T, I) -> <<T:3, ?SIZE8:5, I:8/unit:8>>.
 
 enc_binary(B) -> [enc_int(?BSTR, byte_size(B))|B].
