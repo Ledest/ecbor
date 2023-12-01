@@ -16,8 +16,8 @@
 %%% along with Ecbor. If not, see <http://www.gnu.org/licenses/>.
 -module(ecbor).
 
--export([encode/1, decode/1, encode_seq/1, decode_seq/1]).
--export([enc/1, dec/1, enc_seq/1, dec_seq/1]).
+-export([encode/1, encode/2, decode/1, decode/2, enc/1, enc/2, dec/1, dec/2]).
+-export([encode_seq/1, encode_seq/2, decode_seq/1, decode_seq/2, enc_seq/1, enc_seq/2, dec_seq/1, dec_seq/2]).
 
 -define(SIZE1, 24).
 -define(SIZE2, 25).
@@ -116,23 +116,62 @@
 -define(FLOAT4, ?FLOAT(26)).
 -define(FLOAT8, ?FLOAT(27)).
 
+-record(opt, {safe = false :: boolean()}).
+
+-spec encode(T::term()) -> binary().
 encode(T) -> iolist_to_binary(enc(T)).
 
+-spec encode(T::term(), O::proplists:proplist()) -> binary().
+encode(T, []) -> encode(T).
+
+-spec decode(B::binary()) -> term().
 decode(B) ->
     {T, _} = dec(B),
     T.
 
+-spec decode(B::binary(), O::proplists:proplist()) -> term().
+decode(B, O) ->
+    {T, _} = dec(B, O),
+    T.
+
+-spec encode_seq(L::list()) -> binary().
 encode_seq(L) -> list_to_binary(enc_seq(L)).
 
+-spec encode_seq(L::list(), O::proplists:proplist()) -> binary().
+encode_seq(L, []) -> encode_seq(L).
+
+-spec decode_seq(B::binary()) -> list().
 decode_seq(B) -> dec_seq(B).
 
+-spec decode_seq(B::binary(), O::proplists:proplist()) -> list().
+decode_seq(B, O) -> dec_seq(B, O).
+
+-spec enc_seq(L::list()) -> binary().
 enc_seq(L) -> lists:map(fun enc/1, L).
 
+-spec enc_seq(L::list(), O::proplists:proplist()) -> binary().
+enc_seq(L, []) -> enc_seq(L).
+
+-spec dec_seq(B::binary()) -> list().
 dec_seq(<<>>) -> [];
-dec_seq(B) ->
-    {T, R} = dec(B),
+dec_seq(B) -> dec_seq(B, #opt{}).
+
+-spec dec_seq(B::binary(), O::proplists:proplist()) -> list().
+dec_seq(<<>>, _) -> [];
+dec_seq(B, O) ->
+    {T, R} = dec_(B, O),
     [T|dec_seq(R)].
 
+-spec dec(B::binary()) -> {term(), binary()}.
+dec(B) -> dec_(B, #opt{}).
+
+-spec dec(B::binary(), O::proplists:proplist()) -> {term(), binary()}.
+dec(B, O) -> dec_(B, options(O)).
+
+-spec enc(T::term, O::proplists:proplist()) -> iodata().
+enc(T, []) -> enc(T).
+
+-spec enc(T::term) -> iodata().
 enc(false) -> <<?SIMPLE(20)>>;
 enc(true) -> <<?SIMPLE(21)>>;
 enc(null) -> <<?SIMPLE(22)>>;
@@ -146,50 +185,53 @@ enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
 enc(T) -> enc_eterm(T).
 
-dec(<<?PINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {I, B};
-dec(<<?PINT:3, 2#110:3, S:2, B/binary>>) -> dec_int(S, B);
-dec(<<?NINT:3, I:5, B/binary>>) when I < ?SIZE1 -> {?NEG(I), B};
-dec(<<?NINT:3, 2#110:3, S:2, B/binary>>) -> neg(dec_int(S, B));
-dec(<<?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_array(B);
-dec(<<?ARRAY:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_array(B, S);
-dec(<<?ARRAY:3, 2#110:3, S:2, B/binary>>) ->
+dec_(<<?PINT:3, I:5, B/binary>>, _) when I < ?SIZE1 -> {I, B};
+dec_(<<?PINT:3, 2#110:3, S:2, B/binary>>, _) -> dec_int(S, B);
+dec_(<<?NINT:3, I:5, B/binary>>, _) when I < ?SIZE1 -> {?NEG(I), B};
+dec_(<<?NINT:3, 2#110:3, S:2, B/binary>>, _) -> neg(dec_int(S, B));
+dec_(<<?ARRAY:3, ?INDEFINITE:5, B/binary>>, O) -> dec_array(B, O);
+dec_(<<?ARRAY:3, S:5, B/binary>>, O) when S < ?SIZE1 -> dec_array(B, O, S);
+dec_(<<?ARRAY:3, 2#110:3, S:2, B/binary>>, O) ->
     {I, R} = dec_int(S, B),
-    dec_array(R, I);
-dec(<<?MAP:3, ?INDEFINITE:5, B/binary>>) -> dec_map(B);
-dec(<<?MAP:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_map(B, S);
-dec(<<?MAP:3, 2#110:3, S:2, B/binary>>) ->
+    dec_array(R, O, I);
+dec_(<<?MAP:3, ?INDEFINITE:5, B/binary>>, O) -> dec_map(B, O);
+dec_(<<?MAP:3, S:5, B/binary>>, O) when S < ?SIZE1 -> dec_map(B, O, S);
+dec_(<<?MAP:3, 2#110:3, S:2, B/binary>>, O) ->
     {I, R} = dec_int(S, B),
-    dec_map(R, I);
-dec(<<?TAG:3, ?BIG_PINT:5, 2:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_big_int(B, S);
-dec(<<?TAG:3, ?BIG_PINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
+    dec_map(R, O, I);
+dec_(<<?TAG:3, ?BIG_PINT:5, 2:3, S:5, B/binary>>, _) when S < ?SIZE1 -> dec_big_int(B, S);
+dec_(<<?TAG:3, ?BIG_PINT:5, 2:3, 2#110:3, S:2, B/binary>>, _) ->
     {I, R} = dec_int(S, B),
     dec_big_int(R, I);
-dec(<<?TAG:3, ?BIG_NINT:5, 2:3, S:5, B/binary>>) when S < ?SIZE1 -> neg(dec_big_int(B, S));
-dec(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>) ->
+dec_(<<?TAG:3, ?BIG_NINT:5, 2:3, S:5, B/binary>>, _) when S < ?SIZE1 -> neg(dec_big_int(B, S));
+dec_(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>, _) ->
     {I, R} = dec_int(S, B),
     neg(dec_big_int(R, I));
-dec(<<?TAG:3, S:5, B/binary>>) when S < ?SIZE1 -> dec(B);
-dec(<<?TAG:3, 2#110:3, 0:2, ?LIST, ?ARRAY:3, ?INDEFINITE:5, B/binary>>) -> dec_improper_list(B);
-dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1(S), B/binary>>) -> dec_eterm(B, S);
-dec(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>) when S < ?SIZE1 -> dec_eterm(B, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
-dec(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S);
-dec(<<?TAG:3, 2#110:3, S:2, B/binary>>) ->
+dec_(<<?TAG:3, S:5, B/binary>>, O) when S < ?SIZE1 -> dec_(B, O);
+dec_(<<?TAG:3, 2#110:3, 0:2, ?LIST, ?ARRAY:3, ?INDEFINITE:5, B/binary>>, O) -> dec_improper_list(B, O);
+dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1(S), B/binary>>, _) -> dec_eterm(B, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>, _) when S < ?SIZE1 -> dec_eterm(B, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, _) when ?IS_UATOM(T) -> dec_atom(B, utf8, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, _) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, utf8, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, _) when ?IS_ATOM(T) -> dec_atom(B, latin1, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, _) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, latin1, S);
+dec_(<<?TAG:3, 2#110:3, S:2, B/binary>>, O) ->
     I = 1 bsl S,
     <<_:I/binary, R/binary>> = B,
-    dec(R);
-dec(<<?SIMPLE:3, 2#101:3, I:2, R/binary>>) -> {element(I + 1, {false, true, null, undefined}), R};
-dec(<<?FLOAT:3, 2#110:3, S:2, B/binary>>) when S =/= 0 -> dec_float(B, S);
-dec(<<2#01:2, _:1, ?INDEFINITE:5, B/binary>>) ->
-    {L, R} = dec_array(B),
+    dec_(R, O);
+dec_(<<?SIMPLE:3, 2#101:3, 0:2, R/binary>>, _) -> {false, R};
+dec_(<<?SIMPLE:3, 2#101:3, 1:2, R/binary>>, _) -> {true, R};
+dec_(<<?SIMPLE:3, 2#101:3, 2:2, R/binary>>, _) -> {null, R};
+dec_(<<?SIMPLE:3, 2#101:3, 3:2, R/binary>>, _) -> {undefined, R};
+dec_(<<?FLOAT:3, 2#110:3, S:2, B/binary>>, _) when S =/= 0 -> dec_float(B, S);
+dec_(<<2#01:2, _:1, ?INDEFINITE:5, B/binary>>, O) ->
+    {L, R} = dec_array(B, O),
     {list_to_binary(L), R};
-dec(<<2#01:2, _:1, S:5, B/binary>>) when S < ?SIZE1 -> dec_bin(B, S);
-dec(<<2#01:2, _:1, 2#110:3, S:2, B/binary>>) ->
+dec_(<<2#01:2, _:1, S:5, B/binary>>, _) when S < ?SIZE1 -> dec_bin(B, S);
+dec_(<<2#01:2, _:1, 2#110:3, S:2, B/binary>>, _) ->
     {I, R} = dec_int(S, B),
     dec_bin(R, I);
-dec(T) -> error(badarg, [T]).
+dec_(T, _) -> error(badarg, [T]).
 
 %% Internal
 
@@ -241,8 +283,8 @@ dec_big_int(B, S) ->
     <<V:S/unit:8, R/binary>> = B,
     {V, R}.
 
-dec_array(B, S) ->
-    {L, R} = dec_array_(B, S),
+dec_array(B, O, S) ->
+    {L, R} = dec_array_(B, O, S),
     {try
          list_to_tuple(L)
      catch
@@ -250,32 +292,32 @@ dec_array(B, S) ->
      end,
      R}.
 
-dec_array_(R, 0) -> {[], R};
-dec_array_(B, S) ->
-    {E, R} = dec(B),
-    {L, T} = dec_array_(R, S - 1),
+dec_array_(R, _, 0) -> {[], R};
+dec_array_(B, O, S) ->
+    {E, R} = dec_(B, O),
+    {L, T} = dec_array_(R, O, S - 1),
     {[E|L], T}.
 
-dec_map(B, S) ->
-    {L, R} = dec_map_(B, S),
+dec_map(B, O, S) ->
+    {L, R} = dec_map_(B, O, S),
     {maps:from_list(L), R}.
 
-dec_map_(R, 0) -> {[], R};
-dec_map_(B, S) ->
-    {K, VT} = dec(B),
-    {V, T} = dec(VT),
-    {L, R} = dec_map_(T, S - 1),
+dec_map_(R, _, 0) -> {[], R};
+dec_map_(B, O, S) ->
+    {K, VT} = dec_(B, O),
+    {V, T} = dec_(VT, O),
+    {L, R} = dec_map_(T, O, S - 1),
     {[{K, V}|L], R}.
 
-dec_map(B) ->
-    {L, R} = dec_map_(B),
+dec_map(B, O) ->
+    {L, R} = dec_map_(B, O),
     {maps:from_list(L), R}.
 
-dec_map_(<<?BREAK, R/binary>>) -> {[], R};
-dec_map_(B) ->
-    {K, VT} = dec(B),
-    {V, T} = dec(VT),
-    {L, R} = dec_map_(T),
+dec_map_(<<?BREAK, R/binary>>, _) -> {[], R};
+dec_map_(B, O) ->
+    {K, VT} = dec_(B, O),
+    {V, T} = dec_(VT, O),
+    {L, R} = dec_map_(T, O),
     {[{K, V}|L], R}.
 
 enc_int(T, I) when I < ?SIZE1 -> <<T:3, I:5>>;
@@ -348,16 +390,24 @@ dec_eterm(B, S) ->
     <<V:S/binary, R/binary>> = B,
     {binary_to_term(V), R}.
 
-dec_array(<<?BREAK, R/binary>>) -> {[], R};
-dec_array(B) ->
-    {V, T} = dec(B),
-    {L, R} = dec_array(T),
+dec_array(<<?BREAK, R/binary>>, _) -> {[], R};
+dec_array(B, O) ->
+    {V, T} = dec_(B, O),
+    {L, R} = dec_array(T, O),
     {[V|L], R}.
 
-dec_improper_list(B) ->
-    case dec(B) of
+dec_improper_list(B, O) ->
+    case dec_(B, O) of
         {V, <<?BREAK, R/binary>>} -> {V, R};
         {V, T} ->
-            {L, R} = dec_improper_list(T),
+            {L, R} = dec_improper_list(T, O),
             {[V|L], R}
     end.
+
+-spec options(L::proplists:proplist()) -> #opt{}.
+options(L) ->
+    lists:foldl(fun(safe, A) -> A#opt{safe = true};
+                   ({safe, V}, A) when is_boolean(V) -> A#opt{safe = V};
+                   (_, A) -> A
+                end,
+                #opt{}, L).
