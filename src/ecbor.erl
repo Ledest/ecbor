@@ -206,10 +206,10 @@ dec_int(1, <<I:2/unit:8, R/binary>>) -> {I, R};
 dec_int(2, <<I:4/unit:8, R/binary>>) -> {I, R};
 dec_int(3, <<I:8/unit:8, R/binary>>) -> {I, R}.
 
--compile({inline, [neg/1]}).
+-compile({inline, neg/1}).
 neg({I, R}) -> {?NEG(I), R}.
 
--compile({inline, [dec_float/2]}).
+-compile({inline, dec_float/2}).
 dec_float(<<16#7FF0:2/unit:8, 0:6/unit:8, R/binary>>, 3) -> {positive_infinity, R};
 dec_float(<<16#7FF8:2/unit:8, 0:6/unit:8, R/binary>>, 3) -> {nan, R};
 dec_float(<<16#FFF0:2/unit:8, 0:6/unit:8, R/binary>>, 3) -> {negative_infinity, R};
@@ -223,7 +223,7 @@ dec_float(<<16#7E00:2/unit:8, R/binary>>, 1) -> {nan, R};
 dec_float(<<16#FC00:2/unit:8, R/binary>>, 1) -> {negative_infinity, R};
 dec_float(B, _) -> dec_float16(B).
 
--compile({inline, [dec_float16/1]}).
+-compile({inline, dec_float16/1}).
 -ifdef(HAVE_float16).
 dec_float16(<<F:16/float, R/binary>>) -> {F, R}.
 -else.
@@ -232,7 +232,7 @@ dec_float16(<<S:1, E:5, F:10, R/binary>>) ->
     {T, R}.
 -endif.
 
--compile({inline, [dec_bin/2]}).
+-compile({inline, dec_bin/2}).
 dec_bin(B, S) ->
     <<V:S/binary, R/binary>> = B,
     {V, R}.
@@ -293,17 +293,21 @@ enc_list_([H|T]) -> [enc(H)|enc_list_(T)];
 enc_list_([]) -> [?BREAK];
 enc_list_(T) -> [enc(T), ?BREAK].
 
+-compile({inline, enc_tuple/1}).
 enc_tuple(T) ->
     S = tuple_size(T),
     [enc_int(?ARRAY, S)|enc_array(T, S)].
 
+-compile({inline, enc_array/2}).
 enc_array(T, S) -> enc_array(T, S, []).
 
 enc_array(_, 0, L) -> L;
 enc_array(T, S, L) -> enc_array(T, S - 1, [enc(element(S, T))|L]).
 
+-compile({inline, enc_map/1}).
 enc_map(M) -> [enc_int(?MAP, map_size(M))|lists:sort(maps:fold(fun(K, V, A) -> [[enc(K), enc(V)]|A] end, [], M))].
 
+-compile({inline, enc_float/1}).
 -ifdef(HAVE_float16).
 enc_float(F) ->
     case <<F:16/float>> of
@@ -314,17 +318,19 @@ enc_float(F) ->
 enc_float(F) -> enc_float_(F).
 -endif.
 
--compile({inline, [enc_float_/1]}).
+-compile({inline, enc_float_/1}).
 enc_float_(F) ->
     case <<F:32/float>> of
         <<F:32/float>> = F4 -> <<?FLOAT4, F4/binary>>;
         _ -> <<?FLOAT8, F/float>>
     end.
 
+-compile({inline, enc_atom/1}).
 enc_atom(A) ->
     B = atom_to_binary(A, utf8),
     [<<?TAG1(119)>>, enc_int(?TSTR, byte_size(B))|B].
 
+-compile({inline, enc_eterm/1}).
 enc_eterm(A) ->
     B = term_to_binary(A),
     [<<?TAG1(?ETERM)>>, enc_int(?BSTR, byte_size(B))|B].
