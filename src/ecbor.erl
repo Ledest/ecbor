@@ -183,7 +183,7 @@ enc(L) when is_list(L) -> enc_list(L);
 enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
-enc(T) -> enc_eterm(T).
+enc(T) -> enc_term(T).
 
 dec_(<<?PINT:3, I:5, B/binary>>, _) when I < ?SIZE1 -> {I, B};
 dec_(<<?PINT:3, 2#110:3, S:2, B/binary>>, _) -> dec_int(S, B);
@@ -209,8 +209,8 @@ dec_(<<?TAG:3, ?BIG_NINT:5, 2:3, 2#110:3, S:2, B/binary>>, _) ->
     neg(dec_big_int(R, I));
 dec_(<<?TAG:3, S:5, B/binary>>, O) when S < ?SIZE1 -> dec_(B, O);
 dec_(<<?TAG:3, 2#110:3, 0:2, ?LIST, ?ARRAY:3, ?INDEFINITE:5, B/binary>>, O) -> dec_improper_list(B, O);
-dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1(S), B/binary>>, _) -> dec_eterm(B, S);
-dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>, _) when S < ?SIZE1 -> dec_eterm(B, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, ?SIZE1(S), B/binary>>, O) -> dec_term(B, O, S);
+dec_(<<?TAG:3, 2#110:3, 0:2, ?ETERM, ?BSTR:3, S:5, B/binary>>, O) when S < ?SIZE1 -> dec_term(B, O, S);
 dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, O) when ?IS_UATOM(T) -> dec_atom(B, O, utf8, S);
 dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, O) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, O, utf8, S);
 dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, O) when ?IS_ATOM(T) -> dec_atom(B, O, latin1, S);
@@ -377,8 +377,8 @@ enc_atom(A) ->
     B = atom_to_binary(A, utf8),
     [<<?TAG1(119)>>, enc_int(?TSTR, byte_size(B))|B].
 
--compile({inline, enc_eterm/1}).
-enc_eterm(A) ->
+-compile({inline, enc_term/1}).
+enc_term(A) ->
     B = term_to_binary(A),
     [<<?TAG1(?ETERM)>>, enc_int(?BSTR, byte_size(B))|B].
 
@@ -395,9 +395,19 @@ dec_atom(B, O, E, S) ->
      end,
      R}.
 
-dec_eterm(B, S) ->
+dec_term(B, O, S) ->
     <<V:S/binary, R/binary>> = B,
-    {binary_to_term(V), R}.
+    {dec_term(V, O), R}.
+
+-compile({inline, dec_term/2}).
+dec_term(<<?ETERM, _/binary>> = B, #opt{safe = true}) ->
+    try
+        binary_to_term(B, [safe])
+    catch
+        error:badarg -> B
+    end;
+dec_term(<<?ETERM, _/binary>> = B, _) -> binary_to_term(B);
+dec_term(B, _) -> B.
 
 dec_array(<<?BREAK, R/binary>>, _) -> {[], R};
 dec_array(B, O) ->
