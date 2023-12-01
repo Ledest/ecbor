@@ -160,7 +160,7 @@ dec_seq(B) -> dec_seq(B, #opt{}).
 dec_seq(<<>>, _) -> [];
 dec_seq(B, O) ->
     {T, R} = dec_(B, O),
-    [T|dec_seq(R)].
+    [T|dec_seq(R, O)].
 
 -spec dec(B::binary()) -> {term(), binary()}.
 dec(B) -> dec_(B, #opt{}).
