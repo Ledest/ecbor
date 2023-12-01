@@ -141,10 +141,14 @@ encode_seq(L) -> list_to_binary(enc_seq(L)).
 encode_seq(L, []) -> encode_seq(L).
 
 -spec decode_seq(B::binary()) -> list().
-decode_seq(B) -> dec_seq(B).
+decode_seq(B) ->
+    {T, _} = dec_seq(B),
+    T.
 
 -spec decode_seq(B::binary(), O::proplists:proplist()) -> list().
-decode_seq(B, O) -> dec_seq(B, O).
+decode_seq(B, O) ->
+    {T, _} = dec_seq(B, O),
+    T.
 
 -spec enc_seq(L::list()) -> binary().
 enc_seq(L) -> lists:map(fun enc/1, L).
@@ -152,15 +156,20 @@ enc_seq(L) -> lists:map(fun enc/1, L).
 -spec enc_seq(L::list(), O::proplists:proplist()) -> binary().
 enc_seq(L, []) -> enc_seq(L).
 
--spec dec_seq(B::binary()) -> list().
-dec_seq(<<>>) -> [];
+-spec dec_seq(B::binary()) -> {list(), binary}.
 dec_seq(B) -> dec_seq(B, #opt{}).
 
--spec dec_seq(B::binary(), O::proplists:proplist()) -> list().
-dec_seq(<<>>, _) -> [];
-dec_seq(B, O) ->
-    {T, R} = dec_(B, O),
-    [T|dec_seq(R, O)].
+-spec dec_seq(B::binary(), O::proplists:proplist()) -> {list(), binary()}.
+dec_seq(<<>>, _) -> {[], <<>>};
+dec_seq(B, O) when is_binary(B) ->
+    try dec_(B, O) of
+        {D, R} ->
+            {L, T} = dec_seq(R, O),
+            {[D|L], T}
+    catch
+        error:badarg -> {[], B};
+        C:R -> erlang:C(R)
+    end.
 
 -spec dec(B::binary()) -> {term(), binary()}.
 dec(B) -> dec_(B, #opt{}).
