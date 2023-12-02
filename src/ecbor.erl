@@ -35,6 +35,7 @@
 -define(BIG_PINT, 2).
 -define(BIG_NINT, 3).
 -define(LIST, 108).
+-define(ATOM, 119).
 -define(ETERM, 131).
 -define(IS_ATOM(T), (T =:= 100 orelse T =:= 115)).
 -define(IS_UATOM(T), (T =:= 118 orelse T =:= 119)).
@@ -384,7 +385,7 @@ enc_float_(F) ->
 -compile({inline, enc_atom/1}).
 enc_atom(A) ->
     B = atom_to_binary(A, utf8),
-    [<<?TAG1(119)>>, enc_int(?TSTR, byte_size(B))|B].
+    [<<?TAG1(?ATOM)>>, enc_int(?TSTR, byte_size(B))|B].
 
 -compile({inline, enc_term/1}).
 enc_term(A) ->
