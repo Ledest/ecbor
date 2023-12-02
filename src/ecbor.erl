@@ -244,11 +244,11 @@ dec_(T, _) -> error(badarg, [T]).
 
 %% Internal
 
-enc_int(I) when I >= 1 bsl 64 -> [<<?TAG0(?BIG_PINT)>>, enc_binary(binary:encode_unsigned(I))];
+enc_int(I) when I >= 1 bsl 64 -> [<<?TAG0(?BIG_PINT)>>|enc_binary(binary:encode_unsigned(I))];
 enc_int(I) when I >= 0 -> enc_int(?PINT, I);
 enc_int(I) ->
     case ?NEG(I) of
-        N when N >= 1 bsl 64 -> [<<?TAG0(?BIG_NINT)>>, enc_binary(binary:encode_unsigned(N))];
+        N when N >= 1 bsl 64 -> [<<?TAG0(?BIG_NINT)>>|enc_binary(binary:encode_unsigned(N))];
         N -> enc_int(?NINT, N)
     end.
 
