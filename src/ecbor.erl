@@ -188,7 +188,7 @@ enc(null) -> <<?SIMPLE(22)>>;
 enc(undefined) -> <<?SIMPLE(23)>>;
 enc(I) when is_integer(I) -> enc_int(I);
 enc(F) when is_float(F) -> enc_float(F);
-enc(B) when is_binary(B) -> enc_binary(B);
+enc(B) when is_binary(B) -> enc_bin(B);
 enc(L) when is_list(L) -> enc_list(L);
 enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
@@ -246,11 +246,11 @@ dec_(T, _) -> error(badarg, [T]).
 
 %% Internal
 
-enc_int(I) when I >= 1 bsl 64 -> [<<?TAG0(?BIG_PINT)>>|enc_binary(binary:encode_unsigned(I))];
+enc_int(I) when I >= 1 bsl 64 -> [<<?TAG0(?BIG_PINT)>>|enc_bin(binary:encode_unsigned(I))];
 enc_int(I) when I >= 0 -> enc_int(?PINT, I);
 enc_int(I) ->
     case ?NEG(I) of
-        N when N >= 1 bsl 64 -> [<<?TAG0(?BIG_NINT)>>|enc_binary(binary:encode_unsigned(N))];
+        N when N >= 1 bsl 64 -> [<<?TAG0(?BIG_NINT)>>|enc_bin(binary:encode_unsigned(N))];
         N -> enc_int(?NINT, N)
     end.
 
@@ -337,7 +337,7 @@ enc_int(T, I) when I < 1 bsl 16 -> <<T:3, ?SIZE2(I)>>;
 enc_int(T, I) when I < 1 bsl 32 -> <<T:3, ?SIZE4(I)>>;
 enc_int(T, I) -> <<T:3, ?SIZE8:5, I:8/unit:8>>.
 
-enc_binary(B) -> [enc_int(?BSTR, byte_size(B))|B].
+enc_bin(B) -> [enc_int(?BSTR, byte_size(B))|B].
 
 enc_list(L) ->
     case enc_list_(L) of
