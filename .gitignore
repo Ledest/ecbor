@@ -1,9 +1,12 @@
-/.eunit
-/.rebar
-/_build
-/rebar.lock
-/deps
-/doc
-/ebin
-*.plt
 erl_crash.dump
+/doc
+# rebar 2.x
+/.rebar
+/.eunit
+/ebin
+/deps
+# rebar 3
+/_build
+/_checkouts
+rebar.lock
+*.plt
