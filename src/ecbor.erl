@@ -34,6 +34,7 @@
 -define(SECONDS, 1).
 -define(BIG_PINT, 2).
 -define(BIG_NINT, 3).
+-define(BITSTR, 77).
 -define(LIST, 108).
 -define(ATOM, 119).
 -define(ETERM, 131).
@@ -193,6 +194,7 @@ enc(L) when is_list(L) -> enc_list(L);
 enc(T) when is_tuple(T) -> enc_tuple(T);
 enc(M) when is_map(M) -> enc_map(M);
 enc(A) when is_atom(A) -> enc_atom(A);
+enc(B) when is_bitstring(B) -> enc_bitstr(B);
 enc(T) -> enc_term(T).
 
 dec_(<<?PINT:3, I:5, B/binary>>, _) when I < ?SIZE1 -> {I, B};
@@ -226,6 +228,7 @@ dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, O) when ?IS_UATO
 dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, ?SIZE1(S), B/binary>>, O) when ?IS_ATOM(T) -> dec_atom(B, O, latin1, S);
 dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, O) when ?IS_UATOM(T), S < ?SIZE1 -> dec_atom(B, O, utf8, S);
 dec_(<<?TAG:3, 2#110:3, 0:2, T, ?TSTR:3, S:5, B/binary>>, O) when ?IS_ATOM(T), S < ?SIZE1 -> dec_atom(B, O, latin1, S);
+dec_(<<?TAG:3, 2#110:3, 1:2, ?BITSTR, 0:5, S:3, B/binary>>, O) -> dec_bitstr(B, O, S);
 dec_(<<?TAG:3, 2#110:3, S:2, B/binary>>, O) ->
     I = 1 bsl S,
     <<_:I/binary, R/binary>> = B,
@@ -388,6 +391,15 @@ enc_atom(A) ->
     B = atom_to_binary(A, utf8),
     [<<?TAG1(?ATOM)>>, enc_int(?TSTR, byte_size(B))|B].
 
+enc_bitstr(BS) ->
+    {S, B} = bitstr_to_bin(BS),
+    [<<?TAG2((?BITSTR bsl 8 + S))>>, enc_bin(B)].
+
+-compile({inline, bitstr_to_bin/1}).
+bitstr_to_bin(BS) ->
+    S = bit_size(BS) rem 8,
+    {S, <<BS/bitstring, 0:(8 - S)>>}.
+
 -compile({inline, enc_term/1}).
 enc_term(A) ->
     B = term_to_binary(A),
@@ -432,6 +444,13 @@ dec_improper_list(B, O) ->
         {V, T} ->
             {L, R} = dec_improper_list(T, O),
             {[V|L], R}
+    end.
+
+-compile({inline, dec_bitstr/3}).
+dec_bitstr(B, O, S) ->
+    case dec_(B, O) of
+        {T, R} when S =/= 0, is_binary(T) -> {<<T:(byte_size(T) * 8 + S - 8)/bitstring>>, R};
+        R -> R
     end.
 
 -spec options(L::proplists:proplist()) -> #opt{}.
