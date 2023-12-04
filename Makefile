@@ -35,8 +35,7 @@ doc/edoc-info: $(SOURCES)
 	$(EDOC) -app . $(EDOC_OPTS)
 
 $(EUNIT_MODULES): $(SOURCES) $(TEST_SOURCES) .eunit/
-	$(ERLC) -o .eunit $(ERLC_OPTS) $(ERLC_DEFS) -DTEST $(SOURCES)
-	$(ERLC) -o .eunit $(ERLC_OPTS) $(ERLC_DEFS) -DTEST $(TEST_SOURCES)
+	$(ERLC) -o .eunit $(ERLC_OPTS) $(ERLC_DEFS) -DTEST $(SOURCES) $(TEST_SOURCES)
 
 .eunit/:
 	mkdir .eunit
