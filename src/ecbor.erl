@@ -158,7 +158,7 @@ enc_seq(L) -> lists:map(fun enc/1, L).
 -spec enc_seq(L::list(), O::proplists:proplist()) -> binary().
 enc_seq(L, []) -> enc_seq(L).
 
--spec dec_seq(B::binary()) -> {list(), binary}.
+-spec dec_seq(B::binary()) -> {list(), binary()}.
 dec_seq(B) -> dec_seq(B, #opt{}).
 
 -spec dec_seq(B::binary(), O::proplists:proplist()) -> {list(), binary()}.
