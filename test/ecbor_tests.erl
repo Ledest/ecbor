@@ -21,7 +21,7 @@ repeat_decode_n(0, _) -> ok;
 repeat_decode_n(N, Bin) -> ecbor:decode(Bin), repeat_decode_n(N - 1, Bin).
 
 encode_test_() ->
-    lists:map(fun({V, E}) -> {timeout, 30, ?_assertEqual(ecbor:encode(V), binary:decode_hex(E))};
+    lists:map(fun({V, E}) -> {"Integer", timeout, 30, ?_assertEqual(ecbor:encode(V), binary:decode_hex(E))};
                  ({T, V, E}) -> {T, timeout, 30, ?_assertEqual(ecbor:encode(V), binary:decode_hex(E))}
               end,
               [{0, <<"00">>},
@@ -50,7 +50,7 @@ encode_test_() ->
                {"NULL", null, <<"F6">>}, {"Undefined", undefined, <<"F7">>}]).
 
 decode_test_() ->
-    lists:map(fun({V, E}) -> {timeout, 30, ?_assertEqual(V, ecbor:decode(binary:decode_hex(E)))};
+    lists:map(fun({V, E}) -> {"Integer", timeout, 30, ?_assertEqual(V, ecbor:decode(binary:decode_hex(E)))};
                  ({T, V, E}) -> {T, timeout, 30, ?_assertEqual(V, ecbor:decode(binary:decode_hex(E)))}
               end,
               [{0, <<"00">>},
