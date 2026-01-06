@@ -289,9 +289,7 @@ dec_float16(<<S:1, E:5, F:10, R/binary>>) ->
 -endif.
 
 -compile({inline, dec_bin/2}).
-dec_bin(B, S) ->
-    <<V:S/binary, R/binary>> = B,
-    {V, R}.
+dec_bin(B, S) -> split_binary(B, S).
 
 dec_big_int(B, S) ->
     <<V:S/unit:8, R/binary>> = B,
